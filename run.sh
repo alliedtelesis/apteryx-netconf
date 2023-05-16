@@ -146,9 +146,6 @@ rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 sleep 0.5
 cd $BUILD/../
 
-ps -ef
-cat /var/log/messages
-
 if [ $ACTION == "test" ]; then
         echo Running tests ...
         python3 -m pytest -v

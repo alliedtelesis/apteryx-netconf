@@ -5,7 +5,7 @@ from lxml import etree
 
 # TEST CONFIGURATION
 
-host = 'localhost'
+host = '127.0.0.1'
 port = 830
 username = 'manager'
 password = 'friend'
