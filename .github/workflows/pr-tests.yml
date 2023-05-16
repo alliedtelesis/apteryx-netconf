@@ -17,7 +17,7 @@ jobs:
         cache-name: cache-build
       with:
         path: .build/
-        key: ${{ runner.os }}-setup-${{ env.cache-name }}-${{ hashFiles('run.sh') }}
+        key: ${{ runner.os }}-setup-${{ env.cache-name }}-${{ hashFiles('README.md') }}
         restore-keys: |
           ${{ runner.os }}-setup-${{ env.cache-name }}-
           ${{ runner.os }}-setup-
