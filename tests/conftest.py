@@ -69,6 +69,7 @@ def run_around_tests():
 def allow_unknown_hosts(host, fingerprint):
     return True
 
+
 def connect():
     return manager.connect(host=host,
                            port=port,
