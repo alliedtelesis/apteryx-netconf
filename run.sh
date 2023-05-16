@@ -153,7 +153,7 @@ cd $BUILD/../
 touch $BUILD/known_hosts
 pwd
 cat ~/.ssh/known_hosts
-ssh -p 830 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o UserKnownHostsFile=$BUILD/known_hosts 127.0.0.1 -s netconf
+ssh -v -p 830 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=$BUILD/known_hosts 127.0.0.1 -s netconf
 
 if [ $ACTION == "test" ]; then
         echo Running tests ...
