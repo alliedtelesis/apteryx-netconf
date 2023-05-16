@@ -30,7 +30,9 @@ function quit {
         # Stop Apteryx
         killall -9 apteryxd &> /dev/null
         rm -f /tmp/apteryx
-        cat ~/apteryx-netconf.log
+        if [ -f apteryx-netconf.log ]; then
+                cat apteryx-netconf.log
+        fi
         exit $RC
 }
 
@@ -134,7 +136,7 @@ rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 
 # Parameters
 if [ $ACTION == "test" ]; then
-        PARAM="-v 2>&1 > ~/apteryx-netconf.log &"
+        PARAM="-b -v -l apteryx-netconf.log"
 else
         PARAM="-v"
 fi
@@ -148,7 +150,7 @@ rm -f $BUILD/apteryx-netconf.sock
 G_SLICE=always-malloc LD_LIBRARY_PATH=$BUILD/usr/lib \
         $TEST_WRAPPER ../apteryx-netconf --models $BUILD/../models/ --unix $BUILD/apteryx-netconf.sock $PARAM
 rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
-sleep 0.5
+sleep 2
 cd $BUILD/../
 
 if [ $ACTION == "test" ]; then

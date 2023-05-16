@@ -31,22 +31,21 @@
 /* Debug */
 extern gboolean apteryx_netconf_debug;
 extern gboolean apteryx_netconf_verbose;
+extern FILE *apteryx_netconf_log;
 #define DEBUG(fmt, args...) \
     if (apteryx_netconf_debug || apteryx_netconf_verbose) \
     { \
-        syslog (LOG_DEBUG, fmt, ## args); \
-        printf (fmt, ## args); \
+        fprintf (apteryx_netconf_log, fmt, ## args); \
     }
 #define VERBOSE(fmt, args...) \
     if (apteryx_netconf_verbose) \
     { \
-        syslog (LOG_DEBUG, fmt, ## args); \
-        printf (fmt, ## args); \
+        fprintf (apteryx_netconf_log, fmt, ## args); \
     }
 #define ERROR(fmt, args...) \
     { \
         syslog (LOG_CRIT, fmt, ## args); \
-        fprintf (stderr, fmt, ## args); \
+        fprintf (apteryx_netconf_log, fmt, ## args); \
     }
 
 /* Main loop */

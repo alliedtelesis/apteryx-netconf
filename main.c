@@ -25,7 +25,9 @@
 
 gboolean apteryx_netconf_debug = FALSE;
 gboolean apteryx_netconf_verbose = FALSE;
-gboolean apteryx_netconf_background = FALSE;
+FILE *apteryx_netconf_log = NULL;
+static gboolean background = FALSE;
+static gchar *log_file = NULL;
 static gchar *models_path = "./";
 static gchar *unix_path = "/tmp/apteryx-netconf";
 static gchar *cp_cmd = NULL;
@@ -82,7 +84,8 @@ netconf_accept_thread (gpointer data)
 static GOptionEntry entries[] = {
     {"debug", 'd', 0, G_OPTION_ARG_NONE, &apteryx_netconf_debug, "Debug", NULL},
     {"verbose", 'v', 0, G_OPTION_ARG_NONE, &apteryx_netconf_verbose, "Verbose", NULL},
-    {"background", 'b', 0, G_OPTION_ARG_NONE, &apteryx_netconf_background, "Background", NULL},
+    {"background", 'b', 0, G_OPTION_ARG_NONE, &background, "Background", NULL},
+    {"log", 'l', 0, G_OPTION_ARG_STRING, &log_file, "Write to log file rather than stdout", NULL},
     {"models", 'm', 0, G_OPTION_ARG_STRING, &models_path, "Path to models(defaults to \"./\")", NULL},
     {"unix", 'u', 0, G_OPTION_ARG_STRING, &unix_path, "Listen on unix socket (defaults to /tmp/apteryx-netconf.sock)", NULL},
     {"copy", 'c', 0, G_OPTION_ARG_STRING, &cp_cmd, "BASH command to run to copy running->startup", NULL},
@@ -107,10 +110,18 @@ main (int argc, char *argv[])
     g_option_context_free (context);
 
     /* Daemonize */
-    if (apteryx_netconf_background && fork () != 0)
+    if (background && fork () != 0)
     {
         /* Parent */
         return 0;
+    }
+
+    /* Log file */
+    apteryx_netconf_log = stdout;
+    if (log_file)
+    {
+        apteryx_netconf_log = fopen (log_file, "w+");
+        setbuf (apteryx_netconf_log, NULL);
     }
 
     /* Initialization */
