@@ -30,8 +30,9 @@ function quit {
         # Stop Apteryx
         killall -9 apteryxd &> /dev/null
         rm -f /tmp/apteryx
-        if [ -f apteryx-netconf.log ]; then
-                cat apteryx-netconf.log
+        if [ -f $BUILD/apteryx-netconf.log ]; then
+                echo "=== Apteryx Netconf log ==="
+                cat $BUILD/apteryx-netconf.log
         fi
         exit $RC
 }
@@ -136,7 +137,8 @@ rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 
 # Parameters
 if [ $ACTION == "test" ]; then
-        PARAM="-b -v -l apteryx-netconf.log"
+        rm $BUILD/apteryx-netconf.log
+        PARAM="-b -v -l $BUILD/apteryx-netconf.log"
 else
         PARAM="-v"
 fi
@@ -157,6 +159,7 @@ if [ $ACTION == "test" ]; then
         echo Running tests ...
         python3 -m pytest -k test_get_xpath_node_ns_other
         rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
+        echo Tests completed successfully
 fi
 
 # Gcov
