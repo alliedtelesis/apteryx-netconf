@@ -30,6 +30,7 @@ function quit {
         # Stop Apteryx
         killall -9 apteryxd &> /dev/null
         rm -f /tmp/apteryx
+        cat ~/apteryx-netconf.log
         exit $RC
 }
 
@@ -133,7 +134,7 @@ rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 
 # Parameters
 if [ $ACTION == "test" ]; then
-        PARAM="-b -v"
+        PARAM="-b -v 2>&1 > ~/apteryx-netconf.log"
 else
         PARAM="-v"
 fi
@@ -145,7 +146,7 @@ rm -f $BUILD/apteryx-netconf.sock
 # TEST_WRAPPER="valgrind --leak-check=full"
 # TEST_WRAPPER="valgrind --tool=cachegrind"
 G_SLICE=always-malloc LD_LIBRARY_PATH=$BUILD/usr/lib \
-        $TEST_WRAPPER ../apteryx-netconf $PARAM --models $BUILD/../models/ --unix $BUILD/apteryx-netconf.sock
+        $TEST_WRAPPER ../apteryx-netconf --models $BUILD/../models/ --unix $BUILD/apteryx-netconf.sock $PARAM
 rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 sleep 0.5
 cd $BUILD/../
