@@ -134,7 +134,7 @@ rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 
 # Parameters
 if [ $ACTION == "test" ]; then
-        PARAM="-b -v 2>&1 > ~/apteryx-netconf.log"
+        PARAM="-v 2>&1 > ~/apteryx-netconf.log &"
 else
         PARAM="-v"
 fi
