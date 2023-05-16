@@ -133,7 +133,7 @@ rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 
 # Parameters
 if [ $ACTION == "test" ]; then
-        PARAM="-b"
+        PARAM="-b -v"
 else
         PARAM="-v"
 fi
@@ -149,11 +149,6 @@ G_SLICE=always-malloc LD_LIBRARY_PATH=$BUILD/usr/lib \
 rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 sleep 0.5
 cd $BUILD/../
-
-touch $BUILD/known_hosts
-pwd
-cat ~/.ssh/known_hosts
-ssh -v -p 830 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=$BUILD/known_hosts 127.0.0.1 -s netconf
 
 if [ $ACTION == "test" ]; then
         echo Running tests ...
