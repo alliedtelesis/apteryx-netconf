@@ -114,13 +114,15 @@ echo Checking pytest coding style ...
 flake8 --max-line-length=180 ../tests/*.py
 rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 
-# Start Apteryx and populate the database
+# Start Apteryx
+echo Starting apteryx ...
 export LD_LIBRARY_PATH=$BUILD/usr/lib
 rm -f /tmp/apteryx
 $BUILD/usr/bin/apteryxd -b
 rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 
 # Start sshd
+echo Starting sshd ...
 sudo useradd -M -p $(perl -e 'print crypt($ARGV[0], "password")' 'friend') manager
 sudo $BUILD/usr/sbin/sshd -f $BUILD/sshd_config
 rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
@@ -133,6 +135,7 @@ else
 fi
 
 # Start netconf
+echo Starting apteryx-netconf ...
 rm -f $BUILD/apteryx-netconf.sock
 # TEST_WRAPPER="gdb -ex run --args"
 # TEST_WRAPPER="valgrind --leak-check=full"
@@ -143,7 +146,11 @@ rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 sleep 0.5
 cd $BUILD/../
 
+ps -ef
+cat /var/log/messages
+
 if [ $ACTION == "test" ]; then
+        echo Running tests ...
         python3 -m pytest -v
         rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 fi
