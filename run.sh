@@ -77,13 +77,13 @@ if [ ! -f $BUILD/usr/sbin/sshd ]; then
         make install-nokeys DESTDIR=$BUILD
         rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi
         cd $BUILD
-        mkdir -p $BUILD/empty
-        chmod 755 $BUILD/empty
-        sudo chown root:sys $BUILD/empty
 fi
 if [ ! -f $BUILD/ssh_host_rsa_key ]; then
     $BUILD/usr/bin/ssh-keygen -b 2048 -t rsa -f $BUILD/ssh_host_rsa_key -q -N ""
 fi
+mkdir -p $BUILD/empty
+chmod 755 $BUILD/empty
+sudo chown root:sys $BUILD/empty
 echo -e "
 HostKey $BUILD/ssh_host_rsa_key
 HostKeyAlgorithms ssh-rsa,ssh-dss
