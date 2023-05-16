@@ -14,6 +14,8 @@ BUILD=$ROOT/.build
 mkdir -p $BUILD
 cd $BUILD
 
+ls -l
+
 # Generic cleanup
 function quit {
         RC=$1
@@ -91,6 +93,10 @@ Port 830
 Subsystem netconf /usr/bin/socat STDIO UNIX:$BUILD/apteryx-netconf.sock
 PidFile /tmp/apteryx-netconf-sshd.pid
 " > $BUILD/sshd_config
+
+if [ $ACTION == "setup" ]; then
+        exit 0
+fi
 
 # Build
 echo "Building apteryx-netconf"
