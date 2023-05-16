@@ -1,3 +1,4 @@
+import logging
 import os
 import pytest
 from ncclient import manager
@@ -50,6 +51,9 @@ db_default = [
     # Non-default namespace augmented path
     ('/t2:test/settings/speed', '2'),
 ]
+
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.fixture(autouse=True)
