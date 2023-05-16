@@ -90,6 +90,7 @@ mkdir -p $BUILD/empty
 chmod 755 $BUILD/empty
 sudo chown root:sys $BUILD/empty
 echo -e "
+LogLevel DEBUG3
 HostKey $BUILD/ssh_host_rsa_key
 HostKeyAlgorithms ssh-rsa,ssh-dss
 Port 830
