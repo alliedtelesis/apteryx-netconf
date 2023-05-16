@@ -5,7 +5,7 @@ ACTION=$1
 # Check required libraries and tools
 if ! pkg-config --exists glib-2.0 libxml-2.0 cunit jansson; then
         echo "Please install glib-2.0, libxml-2.0, jansson and cunit"
-        echo "(sudo apt-get install build-essential libglib2.0-dev libxml2-dev libcunit1-dev libjansson-dev)"
+        echo "(sudo apt-get install build-essential libglib2.0-dev libxml2-dev libcunit1-dev libjansson-dev socat)"
         exit 1
 fi
 
@@ -34,8 +34,7 @@ function quit {
                 echo "=== Apteryx Netconf log ==="
                 cat $BUILD/apteryx-netconf.log
         fi
-        less /var/log/secure
-        journalctl -u sshd
+        journalctl --no-pager
         exit $RC
 }
 
