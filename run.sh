@@ -14,8 +14,6 @@ BUILD=$ROOT/.build
 mkdir -p $BUILD
 cd $BUILD
 
-ls -l
-
 # Generic cleanup
 function quit {
         RC=$1
@@ -153,6 +151,7 @@ sleep 0.5
 cd $BUILD/../
 
 pwd
+cat ~/.ssh/known_hosts
 ssh -p 830 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa 127.0.0.1 -s netconf
 
 if [ $ACTION == "test" ]; then
