@@ -34,7 +34,8 @@ function quit {
                 echo "=== Apteryx Netconf log ==="
                 cat $BUILD/apteryx-netconf.log
         fi
-        journalctl --no-pager
+        less /var/log/secure
+        journalctl -u sshd
         exit $RC
 }
 
