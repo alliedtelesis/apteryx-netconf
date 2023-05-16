@@ -152,7 +152,7 @@ cd $BUILD/../
 
 if [ $ACTION == "test" ]; then
         echo Running tests ...
-        python3 -m pytest -k test_get_xpath_node_ns_none
+        python3 -m pytest -k test_get_xpath_node_ns_default
         rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 fi
 
