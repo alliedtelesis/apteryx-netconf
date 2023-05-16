@@ -146,7 +146,8 @@ rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 sleep 0.5
 cd $BUILD/../
 
-netstat -nlap 
+pwd
+ssh -p 830 127.0.0.1 -s netconf
 
 if [ $ACTION == "test" ]; then
         echo Running tests ...
