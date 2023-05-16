@@ -66,6 +66,9 @@ def run_around_tests():
     os.system("%s -r /t2:test" % (APTERYX))
 
 
+def allowUnknownHosts(host,fingerprint):
+    return True
+
 def connect():
     return manager.connect(host=host,
                            port=port,
@@ -73,7 +76,8 @@ def connect():
                            password=password,
                            hostkey_verify=False,
                            allow_agent=False,
-                           look_for_keys=False)
+                           look_for_keys=False,
+                           unknown_host_cb=allowUnknownHosts)
 
 
 def toXML(xml_str):

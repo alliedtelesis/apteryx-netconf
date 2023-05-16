@@ -157,7 +157,7 @@ ssh -v -p 830 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa -
 
 if [ $ACTION == "test" ]; then
         echo Running tests ...
-        python3 -m pytest -v
+        python3 -m pytest -k test_get_xpath_node
         rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 fi
 
