@@ -25,3 +25,5 @@ jobs:
     - if: ${{ steps.cache-setup.outputs.cache-hit != 'true' }}
       name: Setup build
       run: ./run.sh setup
+    - name: Run tests
+      run: ./run.sh test
