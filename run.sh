@@ -147,7 +147,7 @@ sleep 0.5
 cd $BUILD/../
 
 pwd
-ssh -p 830 127.0.0.1 -s netconf
+ssh -p 830 -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa 127.0.0.1 -s netconf
 
 if [ $ACTION == "test" ]; then
         echo Running tests ...
