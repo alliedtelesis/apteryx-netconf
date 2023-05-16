@@ -98,6 +98,10 @@ Subsystem netconf /usr/bin/socat STDIO UNIX:$BUILD/apteryx-netconf.sock
 PidFile /tmp/apteryx-netconf-sshd.pid
 " > $BUILD/sshd_config
 
+cat $BUILD/sshd_config
+which socat
+socat -v
+
 if [ $ACTION == "setup" ]; then
         exit 0
 fi
