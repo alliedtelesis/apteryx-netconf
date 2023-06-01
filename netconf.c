@@ -821,7 +821,6 @@ handle_kill_session (struct netconf_session *session, xmlNode * rpc)
 
     /* Return an "invalid-error" if the request is made by the current session */
     content = xmlNodeGetContent (node);
-    printf("%s: %u: content=%s\n", __func__, __LINE__, content);
     sscanf ((char *) content, "%u", &kill_session_id);
     xmlFree (content);
 
