@@ -41,6 +41,62 @@ static struct _running_ds_lock_t
 
 static uint32_t netconf_session_id = 1;
 
+/* Maintain a list of open sessions */
+static GSList *open_sessions_list = NULL;
+
+/* Free open_sessions_list */
+static void
+free_open_sessions_list (void)
+{
+    GSList *iter = g_slist_last (open_sessions_list);
+    while (iter)
+    {
+        open_sessions_list = g_slist_remove (open_sessions_list, iter);
+        g_free (iter->data);
+        iter = g_slist_last (open_sessions_list);
+    }
+    g_slist_free (open_sessions_list);
+}
+
+/* Remove specified netconf session from open_sessions_list */
+static void
+remove_netconf_session (struct netconf_session *session)
+{
+    if (!session || !open_sessions_list)
+    {
+        return;
+    }
+
+    for (guint i = 0; i < g_slist_length (open_sessions_list); i++)
+    {
+        struct netconf_session *nc_session =
+            (struct netconf_session *) g_slist_nth_data (open_sessions_list, i);
+        if (session->id == nc_session->id)
+        {
+            open_sessions_list = g_slist_remove (open_sessions_list, nc_session);
+            break;
+        }
+    }
+}
+
+/* Find open netconf session details by ID */
+static struct netconf_session *
+find_netconf_session_by_id (uint32_t session_id)
+{
+
+    for (guint i = 0; i < g_slist_length (open_sessions_list); i++)
+    {
+        struct netconf_session *nc_session =
+            (struct netconf_session *) g_slist_nth_data (open_sessions_list, i);
+        if (session_id == nc_session->id)
+        {
+            return nc_session;
+        }
+    }
+
+    return NULL;
+}
+
 static bool
 send_rpc_ok (struct netconf_session *session, xmlNode * rpc, bool closing)
 {
@@ -277,6 +333,7 @@ handle_hello (struct netconf_session *session)
         // TODO
         break;
     }
+
     VERBOSE ("RX(%d):\n%.*s", len, (int) len, buffer);
 
     /* Find trailer */
@@ -649,7 +706,7 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
 }
 
 static void
-_set_lock (struct netconf_session *session)
+set_lock (struct netconf_session *session)
 {
     running_ds_lock.locked = TRUE;
     running_ds_lock.nc_sess.id = session->id;
@@ -678,7 +735,7 @@ handle_lock (struct netconf_session *session, xmlNode * rpc)
     if (running_ds_lock.locked == FALSE)
     {
         /* Acquire lock on the running datastore */
-        _set_lock (session);
+        set_lock (session);
     }
     else
     {
@@ -697,7 +754,7 @@ handle_lock (struct netconf_session *session, xmlNode * rpc)
 }
 
 static void
-_reset_lock (void)
+reset_lock (void)
 {
     running_ds_lock.locked = FALSE;
     running_ds_lock.nc_sess.id = 0;
@@ -737,11 +794,66 @@ handle_unlock (struct netconf_session *session, xmlNode * rpc)
     }
 
     /* Unlock running datastore */
-    _reset_lock ();
+    reset_lock ();
 
     /* Success */
     return send_rpc_ok (session, rpc, false);
 }
+
+static bool
+handle_kill_session (struct netconf_session *session, xmlNode * rpc)
+{
+    xmlNode *action = xmlFirstElementChild (rpc);
+    xmlNode *node;
+    uint32_t kill_session_id = 0;
+    char *msg = NULL;
+    struct netconf_session *kill_session = NULL;
+
+
+    /* Validate request */
+    node = xmlFindNodeByName (action, BAD_CAST "session-id");
+    if (!node)
+    {
+        VERBOSE ("Missing \"session-id\" element");
+        msg = "Missing \"session-id\" element";
+        return send_rpc_error (session, rpc, "missing-element", msg, NULL);
+    }
+
+    /* Return an "invalid-error" if the request is made by the current session */
+    sscanf ((char *) xmlNodeGetContent (node), "%u", &kill_session_id);
+
+    if (kill_session_id == 0)
+    {
+        VERBOSE ("Invalid session ID");
+        return send_rpc_error (session, rpc, "invalid-value", NULL, NULL);
+    }
+    else if (session->id == kill_session_id)
+    {
+        VERBOSE ("Attempt to kill own session is forbidden");
+        msg = "Attempt to kill own session is forbidden";
+        return send_rpc_error (session, rpc, "invalid-value", msg, NULL);
+    }
+
+    kill_session = find_netconf_session_by_id (kill_session_id);
+
+    if (!kill_session)
+    {
+        VERBOSE ("Invalid session ID");
+        return send_rpc_error (session, rpc, "invalid-value", NULL, NULL);
+    }
+
+    /* Shutdown session fd */
+    VERBOSE ("NETCONF: session killed\n");
+    shutdown (kill_session->fd, SHUT_RDWR);
+
+    /**
+     * NOTE: Allow the g_main_loop to handle the actual cleanup of the (broken) killed session
+     **/
+
+    /* Success */
+    return send_rpc_ok (session, rpc, false);
+}
+
 
 static struct netconf_session *
 create_session (int fd)
@@ -755,6 +867,10 @@ create_session (int fd)
     {
         session->id = netconf_session_id++;
     }
+
+    /* Append to open sessions list */
+    open_sessions_list = g_slist_append (open_sessions_list, session);
+
     return session;
 }
 
@@ -762,7 +878,14 @@ static void
 destroy_session (struct netconf_session *session)
 {
     close (session->fd);
-    _reset_lock ();
+
+    if (session->id == running_ds_lock.nc_sess.id)
+    {
+        reset_lock ();
+    }
+
+    remove_netconf_session (session);
+
     g_free (session);
 }
 
@@ -895,7 +1018,7 @@ netconf_handle_session (int fd)
             ERROR ("XML: No RPC child element\n");
             xmlFreeDoc (doc);
             g_free (message);
-            break;;
+            break;
         }
 
         if (g_strcmp0 ((char *) child->name, "close-session") == 0)
@@ -905,6 +1028,11 @@ netconf_handle_session (int fd)
             xmlFreeDoc (doc);
             g_free (message);
             break;
+        }
+        else if (g_strcmp0 ((char *) child->name, "kill-session") == 0)
+        {
+            VERBOSE ("Handle RPC %s\n", (char *) child->name);
+            handle_kill_session (session, rpc);
         }
         else if (g_strcmp0 ((char *) child->name, "get") == 0)
         {
@@ -964,7 +1092,7 @@ netconf_init (const char *path, const char *cp, const char *rm)
     netconf_session_id = rand () % 32768;
 
     /* Initialise lock */
-    _reset_lock ();
+    reset_lock ();
 
     return true;
 }
@@ -975,4 +1103,7 @@ netconf_shutdown (void)
     /* Cleanup datamodels */
     if (g_schema)
         sch_free (g_schema);
+
+    /* Free objects */
+    free_open_sessions_list ();
 }
