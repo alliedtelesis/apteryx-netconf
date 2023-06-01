@@ -808,7 +808,7 @@ handle_kill_session (struct netconf_session *session, xmlNode * rpc)
     uint32_t kill_session_id = 0;
     char *msg = NULL;
     struct netconf_session *kill_session = NULL;
-
+    xmlChar* content = NULL;
 
     /* Validate request */
     node = xmlFindNodeByName (action, BAD_CAST "session-id");
@@ -820,7 +820,10 @@ handle_kill_session (struct netconf_session *session, xmlNode * rpc)
     }
 
     /* Return an "invalid-error" if the request is made by the current session */
-    sscanf ((char *) xmlNodeGetContent (node), "%u", &kill_session_id);
+    content = xmlNodeGetContent (node);
+    printf("%s: %u: content=%s\n", __func__, __LINE__, content);
+    sscanf ((char *) content, "%u", &kill_session_id);
+    xmlFree (content);
 
     if (kill_session_id == 0)
     {
