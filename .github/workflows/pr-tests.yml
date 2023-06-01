@@ -2,10 +2,6 @@ name: Run unit tests
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [ master ]
-  push:
-    branches: [ master ]
 
 jobs:
   build:
@@ -13,7 +9,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install dependencies
-      run: sudo apt-get install -y build-essential libglib2.0-dev libxml2-dev libcunit1-dev libjansson-dev flake8 python3-pytest python3-lxml
-    - name: Build and run tests
+      run: sudo apt-get install -y build-essential libglib2.0-dev libxml2-dev libcunit1-dev libjansson-dev liblua5.2-dev flake8 python3-pytest python3-lxml python3-ncclient socat
+    - name: Run tests
       run: ./run.sh test
-
