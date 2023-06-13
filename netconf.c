@@ -112,8 +112,9 @@ send_rpc_ok (struct netconf_session *session, xmlNode * rpc, bool closing)
     root = xmlNewNode (NULL, BAD_CAST "nc:rpc-reply");
     xmlFreePropList (root->properties);
     root->properties = xmlCopyPropList (root, rpc->properties);
-    xmlNewProp (root, BAD_CAST "xmlns:nc",
-                BAD_CAST "urn:ietf:params:xml:ns:netconf:base:1.0");
+
+    xmlNewNs (xmlDocGetRootElement (doc), "urn:ietf:params:xml:ns:netconf:base:1.0", "");
+    xmlNewNs (xmlDocGetRootElement (doc), "urn:ietf:params:xml:ns:netconf:base:1.0", "xmlns:nc");
     xmlDocSetRootElement (doc, root);
     xmlNewChild (root, NULL, BAD_CAST "nc:ok", NULL);
     xmlDocDumpMemoryEnc (doc, &xmlbuff, &len, "UTF-8");
@@ -176,8 +177,9 @@ send_rpc_error (struct netconf_session *session, xmlNode * rpc, const char *erro
     root = xmlNewNode (NULL, BAD_CAST "nc:rpc-reply");
     xmlFreePropList (root->properties);
     root->properties = xmlCopyPropList (root, rpc->properties);
-    xmlNewProp (root, BAD_CAST "xmlns:nc",
-                BAD_CAST "urn:ietf:params:xml:ns:netconf:base:1.0");
+    xmlNewNs (xmlDocGetRootElement (doc), "urn:ietf:params:xml:ns:netconf:base:1.0", "");
+    xmlNewNs (xmlDocGetRootElement (doc), "urn:ietf:params:xml:ns:netconf:base:1.0", "xmlns:nc");
+
     xmlDocSetRootElement (doc, root);
     child = xmlNewChild (root, NULL, BAD_CAST "nc:rpc-error", NULL);
     xmlNewChild (child, NULL, BAD_CAST "nc:error-tag", BAD_CAST error);
@@ -247,8 +249,9 @@ send_rpc_data (struct netconf_session *session, xmlNode * rpc, xmlNode * data)
     root = xmlNewNode (NULL, BAD_CAST "nc:rpc-reply");
     xmlFreePropList (root->properties);
     root->properties = xmlCopyPropList (root, rpc->properties);
-    xmlNewProp (root, BAD_CAST "xmlns:nc",
-                BAD_CAST "urn:ietf:params:xml:ns:netconf:base:1.0");
+
+    xmlNewNs (xmlDocGetRootElement (doc), "urn:ietf:params:xml:ns:netconf:base:1.0", "");
+    xmlNewNs (xmlDocGetRootElement (doc), "urn:ietf:params:xml:ns:netconf:base:1.0", "xmlns:nc");
     xmlDocSetRootElement (doc, root);
     child = xmlNewChild (root, NULL, BAD_CAST "nc:data", NULL);
     xmlNewProp (child, BAD_CAST "xmlns:nc",
