@@ -97,25 +97,34 @@ find_netconf_session_by_id (uint32_t session_id)
     return NULL;
 }
 
+static xmlDoc*
+create_rpc (xmlChar *type, xmlChar *msg_id)
+{
+    xmlDoc *doc = xmlNewDoc (BAD_CAST "1.0");
+    xmlNode *root = xmlNewNode (NULL, type);
+    xmlNs *ns = xmlNewNs (root, BAD_CAST "urn:ietf:params:xml:ns:netconf:base:1.0", BAD_CAST "nc");
+    xmlSetNs (root, ns);
+    if (msg_id)
+    {
+        xmlSetProp (root, BAD_CAST "message-id", msg_id);
+        free (msg_id);
+    }
+    xmlDocSetRootElement (doc, root);
+    return doc;
+}
+
 static bool
 send_rpc_ok (struct netconf_session *session, xmlNode * rpc, bool closing)
 {
     xmlDoc *doc;
-    xmlNode *root;
     xmlChar *xmlbuff = NULL;
     char *header = NULL;
     int len;
     bool ret = true;
 
     /* Generate reply */
-    doc = xmlNewDoc (BAD_CAST "1.0");
-    root = xmlNewNode (NULL, BAD_CAST "nc:rpc-reply");
-    xmlFreePropList (root->properties);
-    root->properties = xmlCopyPropList (root, rpc->properties);
-    xmlNewProp (root, BAD_CAST "xmlns:nc",
-                BAD_CAST "urn:ietf:params:xml:ns:netconf:base:1.0");
-    xmlDocSetRootElement (doc, root);
-    xmlNewChild (root, NULL, BAD_CAST "nc:ok", NULL);
+    doc = create_rpc (BAD_CAST "rpc-reply", xmlGetProp (rpc, BAD_CAST "message-id"));
+    xmlNewChild (xmlDocGetRootElement (doc), NULL, BAD_CAST "ok", NULL);
     xmlDocDumpMemoryEnc (doc, &xmlbuff, &len, "UTF-8");
     header = g_strdup_printf ("\n#%d\n", len);
 
@@ -165,28 +174,22 @@ send_rpc_error (struct netconf_session *session, xmlNode * rpc, const char *erro
                 const char *error_msg, xmlNode * error_info)
 {
     xmlDoc *doc;
-    xmlNode *root, *child;
+    xmlNode *child;
     xmlChar *xmlbuff = NULL;
     char *header = NULL;
     int len;
     bool ret = true;
 
     /* Generate reply */
-    doc = xmlNewDoc (BAD_CAST "1.0");
-    root = xmlNewNode (NULL, BAD_CAST "nc:rpc-reply");
-    xmlFreePropList (root->properties);
-    root->properties = xmlCopyPropList (root, rpc->properties);
-    xmlNewProp (root, BAD_CAST "xmlns:nc",
-                BAD_CAST "urn:ietf:params:xml:ns:netconf:base:1.0");
-    xmlDocSetRootElement (doc, root);
-    child = xmlNewChild (root, NULL, BAD_CAST "nc:rpc-error", NULL);
-    xmlNewChild (child, NULL, BAD_CAST "nc:error-tag", BAD_CAST error);
-    xmlNewChild (child, NULL, BAD_CAST "nc:error-type", BAD_CAST "rpc");
-    xmlNewChild (child, NULL, BAD_CAST "nc:error-severity", BAD_CAST "error");
+    doc = create_rpc (BAD_CAST "rpc-reply", xmlGetProp (rpc, BAD_CAST "message-id"));
+    child = xmlNewChild (xmlDocGetRootElement (doc), NULL, BAD_CAST "rpc-error", NULL);
+    xmlNewChild (child, NULL, BAD_CAST "error-tag", BAD_CAST error);
+    xmlNewChild (child, NULL, BAD_CAST "error-type", BAD_CAST "rpc");
+    xmlNewChild (child, NULL, BAD_CAST "error-severity", BAD_CAST "error");
 
     if (error_msg != NULL)
     {
-        xmlNewChild (child, NULL, BAD_CAST "nc:error-message", BAD_CAST error_msg);
+        xmlNewChild (child, NULL, BAD_CAST "error-message", BAD_CAST error_msg);
     }
 
     if (error_info != NULL)
@@ -195,7 +198,7 @@ send_rpc_error (struct netconf_session *session, xmlNode * rpc, const char *erro
     }
     else
     {
-        xmlNewChild (child, NULL, BAD_CAST "nc:error-info", BAD_CAST NULL);
+        xmlNewChild (child, NULL, BAD_CAST "error-info", BAD_CAST NULL);
     }
 
     xmlDocDumpMemoryEnc (doc, &xmlbuff, &len, "UTF-8");
@@ -236,23 +239,15 @@ static bool
 send_rpc_data (struct netconf_session *session, xmlNode * rpc, xmlNode * data)
 {
     xmlDoc *doc;
-    xmlNode *root, *child;
-    xmlChar *xmlbuff = NULL;
+    xmlNode *child;
+    xmlChar *xmlbuff;
     char *header = NULL;
     int len;
     bool ret = true;
 
     /* Generate reply */
-    doc = xmlNewDoc (BAD_CAST "1.0");
-    root = xmlNewNode (NULL, BAD_CAST "nc:rpc-reply");
-    xmlFreePropList (root->properties);
-    root->properties = xmlCopyPropList (root, rpc->properties);
-    xmlNewProp (root, BAD_CAST "xmlns:nc",
-                BAD_CAST "urn:ietf:params:xml:ns:netconf:base:1.0");
-    xmlDocSetRootElement (doc, root);
-    child = xmlNewChild (root, NULL, BAD_CAST "nc:data", NULL);
-    xmlNewProp (child, BAD_CAST "xmlns:nc",
-                BAD_CAST "urn:ietf:params:xml:ns:netconf:base:1.0");
+    doc = create_rpc ( BAD_CAST "rpc-reply", xmlGetProp (rpc, BAD_CAST "message-id"));
+    child = xmlNewChild (xmlDocGetRootElement (doc), NULL, BAD_CAST "data", NULL);
     xmlAddChildList (child, data);
     xmlDocDumpMemoryEnc (doc, &xmlbuff, &len, "UTF-8");
     header = g_strdup_printf ("\n#%d\n", len);
@@ -304,7 +299,7 @@ schema_set_model_information (xmlNode * cap)
             strlen (loaded->organization) && strlen (loaded->version) &&
             strlen (loaded->model))
         {
-            xml_child = xmlNewChild (cap, NULL, BAD_CAST "nc:capability", NULL);
+            xml_child = xmlNewChild (cap, NULL, BAD_CAST "capability", NULL);
             capability = g_strdup_printf ("%s?module=%s&amp;revision=%s",
                                           loaded->ns_href, loaded->model, loaded->version);
             xmlNodeSetContent (xml_child, BAD_CAST capability);
@@ -365,26 +360,23 @@ handle_hello (struct netconf_session *session)
     xmlFreeDoc (doc);
 
     /* Generate reply */
-    doc = xmlNewDoc (BAD_CAST "1.0");
-    root = xmlNewNode (NULL, BAD_CAST "nc:hello");
-    xmlNewProp (root, BAD_CAST "xmlns:nc",
-                BAD_CAST "urn:ietf:params:xml:ns:netconf:base:1.0");
-    xmlDocSetRootElement (doc, root);
-    node = xmlNewChild (root, NULL, BAD_CAST "nc:capabilities", NULL);
-    child = xmlNewChild (node, NULL, BAD_CAST "nc:capability", NULL);
+    doc = create_rpc (BAD_CAST "hello", NULL);
+    root = xmlDocGetRootElement (doc);
+    node = xmlNewChild (root, NULL, BAD_CAST "capabilities", NULL);
+    child = xmlNewChild (node, NULL, BAD_CAST "capability", NULL);
     xmlNodeSetContent (child, BAD_CAST "urn:ietf:params:netconf:base:1.1");
-    child = xmlNewChild (node, NULL, BAD_CAST "nc:capability", NULL);
+    child = xmlNewChild (node, NULL, BAD_CAST "capability", NULL);
     xmlNodeSetContent (child, BAD_CAST "urn:ietf:params:netconf:capability:xpath:1.0");
-    child = xmlNewChild (node, NULL, BAD_CAST "nc:capability", NULL);
+    child = xmlNewChild (node, NULL, BAD_CAST "capability", NULL);
     xmlNodeSetContent (child,
                        BAD_CAST "urn:ietf:params:netconf:capability:writable-running:1.0");
-    child = xmlNewChild (node, NULL, BAD_CAST "nc:capability", NULL);
+    child = xmlNewChild (node, NULL, BAD_CAST "capability", NULL);
     xmlNodeSetContent (child,
                        BAD_CAST "urn:ietf:params:netconf:capability:with-defaults:1.0");
     /* Find all models in the entire tree */
     schema_set_model_information (node);
     snprintf (session_id_str, sizeof (session_id_str), "%u", session->id);
-    node = xmlNewChild (root, NULL, BAD_CAST "nc:session-id", NULL);
+    node = xmlNewChild (root, NULL, BAD_CAST "session-id", NULL);
     xmlNodeSetContent (node, BAD_CAST session_id_str);
     xmlDocDumpMemoryEnc (doc, &hello_resp, &hello_resp_len, "UTF-8");
     xmlFreeDoc (doc);
@@ -463,10 +455,10 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
     {
         /* A lock is already held by another NETCONF session, return lock-denied */
         VERBOSE ("Lock failed, lock is already held\n");
-        error_info = xmlNewNode (NULL, BAD_CAST "nc:error-info");
+        error_info = xmlNewNode (NULL, BAD_CAST "error-info");
         snprintf (session_id_str, sizeof (session_id_str), "%u",
                   running_ds_lock.nc_sess.id);
-        xmlNewChild (error_info, NULL, BAD_CAST "nc:session-id", BAD_CAST session_id_str);
+        xmlNewChild (error_info, NULL, BAD_CAST "session-id", BAD_CAST session_id_str);
         msg = "Lock failed, lock is already held";
         return send_rpc_error (session, rpc, "lock-denied", msg, error_info);
     }
@@ -626,10 +618,10 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
     {
         /* A lock is already held by another NETCONF session, return lock-denied */
         VERBOSE ("Lock failed, lock is already held\n");
-        error_info = xmlNewNode (NULL, BAD_CAST "nc:error-info");
+        error_info = xmlNewNode (NULL, BAD_CAST "error-info");
         snprintf (session_id_str, sizeof (session_id_str), "%u",
                   running_ds_lock.nc_sess.id);
-        xmlNewChild (error_info, NULL, BAD_CAST "nc:session-id", BAD_CAST session_id_str);
+        xmlNewChild (error_info, NULL, BAD_CAST "session-id", BAD_CAST session_id_str);
         msg = "Lock failed, lock is already held";
         return send_rpc_error (session, rpc, "lock-denied", msg, error_info);
     }
@@ -741,10 +733,10 @@ handle_lock (struct netconf_session *session, xmlNode * rpc)
     {
         /* Return lock-denied */
         VERBOSE ("Lock failed, lock is already held\n");
-        error_info = xmlNewNode (NULL, BAD_CAST "nc:error-info");
+        error_info = xmlNewNode (NULL, BAD_CAST "error-info");
         snprintf (session_id_str, sizeof (session_id_str), "%u",
                   running_ds_lock.nc_sess.id);
-        xmlNewChild (error_info, NULL, BAD_CAST "nc:session-id", BAD_CAST session_id_str);
+        xmlNewChild (error_info, NULL, BAD_CAST "session-id", BAD_CAST session_id_str);
         msg = "Lock failed, lock is already held";
         return send_rpc_error (session, rpc, "lock-denied", msg, error_info);
     }
@@ -785,10 +777,10 @@ handle_unlock (struct netconf_session *session, xmlNode * rpc)
     {
         /* Lock held by another session */
         VERBOSE ("Unlock failed, session does not own lock on the datastore\n");
-        error_info = xmlNewNode (NULL, BAD_CAST "nc:error-info");
+        error_info = xmlNewNode (NULL, BAD_CAST "error-info");
         snprintf (session_id_str, sizeof (session_id_str), "%u",
                   running_ds_lock.nc_sess.id);
-        xmlNewChild (error_info, NULL, BAD_CAST "nc:session-id", BAD_CAST session_id_str);
+        xmlNewChild (error_info, NULL, BAD_CAST "session-id", BAD_CAST session_id_str);
         msg = "Unlock failed, session does not own lock on the datastore";
         return send_rpc_error (session, rpc, "operation-failed", msg, error_info);
     }
