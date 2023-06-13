@@ -33,6 +33,57 @@ def test_server_capabilities():
 # TODO :with-defaults
 # TODO explicit namespace queries
 
+# Packet formats
+
+
+def test_rpc_data():
+    m = connect()
+    reply = m.get_config(source='running', filter=('xpath', "/test/settings/debug"))
+    print(reply.xml)
+    xml = reply._root
+    assert xml.nsmap == {'nc': 'urn:ietf:params:xml:ns:netconf:base:1.0'}
+    assert xml.tag == '{urn:ietf:params:xml:ns:netconf:base:1.0}rpc-reply'
+    assert xml.getchildren()[0].tag == '{urn:ietf:params:xml:ns:netconf:base:1.0}data'
+    assert xml.prefix == 'nc'
+    m.close_session()
+
+
+def test_rpc_ok():
+    config = """
+<config>
+  <test>
+    <settings>
+        <priority>5</priority>
+    </settings>
+  </test>
+</config>
+"""
+    m = connect()
+    reply = m.edit_config(target='running', config=config)
+    print(reply.xml)
+    xml = reply._root
+    assert xml.nsmap == {'nc': 'urn:ietf:params:xml:ns:netconf:base:1.0'}
+    assert xml.tag == '{urn:ietf:params:xml:ns:netconf:base:1.0}rpc-reply'
+    assert xml.getchildren()[0].tag == '{urn:ietf:params:xml:ns:netconf:base:1.0}ok'
+    assert xml.prefix == 'nc'
+    m.close_session()
+
+
+def test_rpc_error():
+    m = connect()
+    try:
+        m.get_config(source='candidate', filter=('xpath', "/test/settings/debug"))
+    except RPCError as e:
+        reply = e
+    xml = reply.xml.getparent()
+    print(etree.tostring(xml, pretty_print=True, encoding="unicode"))
+    assert xml.nsmap == {'nc': 'urn:ietf:params:xml:ns:netconf:base:1.0'}
+    assert xml.tag == '{urn:ietf:params:xml:ns:netconf:base:1.0}rpc-reply'
+    assert xml.getchildren()[0].tag == '{urn:ietf:params:xml:ns:netconf:base:1.0}rpc-error'
+    assert xml.prefix == 'nc'
+    m.close_session()
+
+
 # GET-CONFIG
 
 
