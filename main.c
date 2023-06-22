@@ -33,12 +33,16 @@ static gchar *cp_cmd = NULL;
 static gchar *rm_cmd = NULL;
 static GThread *g_thread = NULL;
 GMainLoop *g_loop = NULL;
+static int accept_fd = -1;
 
 static gboolean
 termination_handler (gpointer arg1)
 {
     GMainLoop *loop = (GMainLoop *) arg1;
     g_main_loop_quit (loop);
+    shutdown(accept_fd, SHUT_RD);
+    close (accept_fd);
+    netconf_close_open_sessions ();
     return FALSE;
 }
 
@@ -49,18 +53,17 @@ netconf_accept_thread (gpointer data)
     const char *path = (const char *) data;
     struct sockaddr_un addr_un;
     GThreadPool *workers;
-    int fd;
 
     memset (&addr_un, 0, sizeof (addr_un));
     addr_un.sun_family = AF_UNIX;
     strncpy (addr_un.sun_path, path, sizeof (addr_un.sun_path) - 1);
 
-    fd = socket (PF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0)
+    accept_fd = socket (PF_UNIX, SOCK_STREAM, 0);
+    if (accept_fd < 0)
         g_error ("Socket(%s) failed: %s\n", path, strerror (errno));
-    if (bind (fd, (struct sockaddr *) &addr_un, sizeof (addr_un)) < 0)
+    if (bind (accept_fd, (struct sockaddr *) &addr_un, sizeof (addr_un)) < 0)
         g_error ("Socket(%s) error binding: %s\n", path, strerror (errno));
-    if (listen (fd, 255) < 0)
+    if (listen (accept_fd, 255) < 0)
         g_error ("Socket(%s) listen failed: %s\n", path, strerror (errno));
     chmod (path, 0666);
 
@@ -71,9 +74,12 @@ netconf_accept_thread (gpointer data)
     {
         struct sockaddr addr;
         socklen_t len = sizeof (addr);
-        int new_fd = accept (fd, &addr, &len);
-        VERBOSE ("NETCONF: New session\n");
-        g_thread_pool_push (workers, GINT_TO_POINTER (new_fd), NULL);
+        int new_fd = accept (accept_fd, &addr, &len);
+        if (new_fd >= 0)
+        {
+            VERBOSE ("NETCONF: New session\n");
+            g_thread_pool_push (workers, GINT_TO_POINTER (new_fd), NULL);
+        }
     }
     g_thread_pool_free (workers, true, false);
     VERBOSE ("NETCONF: Finished accepting clients\n");

@@ -44,9 +44,9 @@ static uint32_t netconf_session_id = 1;
 /* Maintain a list of open sessions */
 static GSList *open_sessions_list = NULL;
 
-/* Free open_sessions_list */
-static void
-free_open_sessions_list (void)
+/* Close open sessions */
+void
+netconf_close_open_sessions (void)
 {
     if (open_sessions_list)
     {
@@ -54,10 +54,12 @@ free_open_sessions_list (void)
         {
             struct netconf_session *nc_session =
                 (struct netconf_session *) g_slist_nth_data (open_sessions_list, i);
-            if (nc_session)
-                g_free (nc_session);
+            if (nc_session->fd >= 0)
+            {
+                close (nc_session->fd);
+                nc_session->fd = -1;
+            }
         }
-        g_slist_free (open_sessions_list);
     }
 }
 
@@ -1055,7 +1057,11 @@ create_session (int fd)
 static void
 destroy_session (struct netconf_session *session)
 {
-    close (session->fd);
+    if (session->fd >= 0)
+    {
+        close (session->fd);
+        session->fd = -1;
+    }
 
     if (session->id == running_ds_lock.nc_sess.id)
     {
@@ -1282,7 +1288,4 @@ netconf_shutdown (void)
     /* Cleanup datamodels */
     if (g_schema)
         sch_free (g_schema);
-
-    /* Free objects */
-    free_open_sessions_list ();
 }

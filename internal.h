@@ -53,6 +53,7 @@ extern gboolean apteryx_netconf_verbose;
 extern GMainLoop *g_loop;
 
 /* Netconf routines */
+void netconf_close_open_sessions (void);
 gboolean netconf_init (const char *path, const char *supported,
                        const char *cp, const char *rm);
 void *netconf_handle_session (int fd);
