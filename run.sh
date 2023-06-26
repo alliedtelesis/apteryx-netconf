@@ -115,6 +115,7 @@ make -C $BUILD/../
 rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 cp $BUILD/../models/*.xml $BUILD/etc/apteryx/schema/
 cp $BUILD/../models/*.map $BUILD/etc/apteryx/schema/
+cp $BUILD/../models/netconf-logging-options $BUILD/etc/apteryx/schema/
 
 # Check tests
 echo Checking pytest coding style ...
@@ -145,7 +146,7 @@ rm -f $BUILD/apteryx-netconf.sock
 # TEST_WRAPPER="valgrind --leak-check=full"
 # TEST_WRAPPER="valgrind --tool=cachegrind"
 G_SLICE=always-malloc LD_LIBRARY_PATH=$BUILD/usr/lib \
-        $TEST_WRAPPER ../apteryx-netconf $PARAM -m $BUILD/etc/apteryx/schema/ --unix $BUILD/apteryx-netconf.sock
+        $TEST_WRAPPER ../apteryx-netconf $PARAM -m $BUILD/etc/apteryx/schema/ -l netconf-logging-options --unix $BUILD/apteryx-netconf.sock
 rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 sleep 0.5
 cd $BUILD/../

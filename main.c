@@ -28,6 +28,7 @@ gboolean apteryx_netconf_verbose = FALSE;
 static gboolean background = FALSE;
 static gchar *models_path = "./";
 static gchar *supported = NULL;
+static gchar *logging = NULL;
 static gchar *unix_path = "/tmp/apteryx-netconf";
 static gchar *cp_cmd = NULL;
 static gchar *rm_cmd = NULL;
@@ -93,7 +94,9 @@ static GOptionEntry entries[] = {
     {"models", 'm', 0, G_OPTION_ARG_STRING, &models_path,
      "Path to models(defaults to \"./\")", NULL},
     {"supported", 's', 0, G_OPTION_ARG_STRING, &supported,
-     "Name of file containing a list of supported models", NULL},
+     "Name of a file containing a list of supported models", NULL},
+    {"logging", 'l', 0, G_OPTION_ARG_STRING, &logging,
+     "Name of a file containing a list of events to log", NULL},
     {"unix", 'u', 0, G_OPTION_ARG_STRING, &unix_path,
      "Listen on unix socket (defaults to /tmp/apteryx-netconf.sock)", NULL},
     {"copy", 'c', 0, G_OPTION_ARG_STRING, &cp_cmd,
@@ -128,7 +131,7 @@ main (int argc, char *argv[])
 
     /* Initialization */
     apteryx_init (apteryx_netconf_verbose);
-    if (!netconf_init (models_path, supported, cp_cmd, rm_cmd))
+    if (!netconf_init (models_path, supported, logging, cp_cmd, rm_cmd))
     {
         g_error ("Failed to load models from \"%s\"\n", models_path);
     }

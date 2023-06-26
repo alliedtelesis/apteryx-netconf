@@ -18,7 +18,9 @@
  * along with this library. If not, see <http://www.gnu.org/licenses/>
  */
 #include "internal.h"
+#define __USE_GNU
 #include <sys/socket.h>
+#include <pwd.h>
 #define APTERYX_XML_LIBXML2
 #include <apteryx-xml.h>
 
@@ -28,6 +30,7 @@ struct netconf_session
 {
     int fd;
     uint32_t id;
+    char *username;
 };
 
 static struct _running_ds_lock_t
@@ -694,6 +697,11 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
 
     /* Query database */
     DEBUG ("NETCONF: GET %s\n", query ? APTERYX_NAME (query) : "/");
+    if (netconf_logging_test_flag (LOG_GET | LOG_GET_CONFIG))
+        NOTICE ("%s: user:%s session-id:%d path:%s\n",
+              config_only ? "GET-CONFIG" : "GET", session->username, session->id,
+              query ? APTERYX_NAME (query) : "/");
+
     tree = query ? apteryx_query (query) : get_full_tree ();
     apteryx_free_tree (query);
 
@@ -877,6 +885,10 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
         apteryx_free_tree (tree);
         return send_rpc_error (session, rpc, "operation-failed", NULL, NULL);
     }
+    if (netconf_logging_test_flag (LOG_EDIT_CONFIG))
+        NOTICE ("EDIT-CONFIG: user:%s session-id:%d path:%s\n",
+                session->username, session->id, tree ? APTERYX_NAME (tree) : "/");
+
     apteryx_free_tree (tree);
 
     /* Success */
@@ -926,6 +938,8 @@ handle_lock (struct netconf_session *session, xmlNode * rpc)
         msg = "Lock failed, lock is already held";
         return send_rpc_error (session, rpc, "lock-denied", msg, error_info);
     }
+    if (netconf_logging_test_flag (LOG_LOCK))
+        NOTICE ("LOCK: user:%s session-id:%d\n", session->username, session->id);
 
     /* Success */
     return send_rpc_ok (session, rpc, false);
@@ -973,6 +987,9 @@ handle_unlock (struct netconf_session *session, xmlNode * rpc)
 
     /* Unlock running datastore */
     reset_lock ();
+
+    if (netconf_logging_test_flag (LOG_UNLOCK))
+        NOTICE ("UNLOCK: user:%s session-id:%d\n", session->username, session->id);
 
     /* Success */
     return send_rpc_ok (session, rpc, false);
@@ -1024,6 +1041,10 @@ handle_kill_session (struct netconf_session *session, xmlNode * rpc)
 
     /* Shutdown session fd */
     VERBOSE ("NETCONF: session killed\n");
+    if (netconf_logging_test_flag (LOG_KILL_SESSION))
+        NOTICE ("KILL-SESSION: user:%s session-id:%d killed session user:%s: session-id:%d\n",
+                session->username, session->id, kill_session->username, kill_session->id);
+
     shutdown (kill_session->fd, SHUT_RDWR);
 
     /**
@@ -1069,6 +1090,9 @@ destroy_session (struct netconf_session *session)
     }
 
     remove_netconf_session (session);
+
+    if (session->username)
+        g_free (session->username);
 
     g_free (session);
 }
@@ -1155,6 +1179,18 @@ void *
 netconf_handle_session (int fd)
 {
     struct netconf_session *session = create_session (fd);
+    struct ucred ucred;
+    socklen_t len = sizeof (struct ucred);
+
+    /* Get user information from the calling process */
+    if (getsockopt (fd, SOL_SOCKET, SO_PEERCRED, &ucred, &len) >= 0)
+    {
+        struct passwd *pw = getpwuid(ucred.uid);
+        if (pw)
+        {
+            session->username = g_strdup(pw->pw_name);
+        }
+    }
 
     /* Process hello's first */
     if (!handle_hello (session))
@@ -1262,9 +1298,14 @@ netconf_handle_session (int fd)
 }
 
 gboolean
-netconf_init (const char *path, const char *supported,
+netconf_init (const char *path, const char *supported, const char *logging,
               const char *cp, const char *rm)
 {
+    if (logging)
+    {
+        netconf_logging_init (path, logging);
+    }
+
     /* Load Data Models */
     g_schema = sch_load_with_model_list_filename (path, supported);
     if (!g_schema)
@@ -1288,4 +1329,6 @@ netconf_shutdown (void)
     /* Cleanup datamodels */
     if (g_schema)
         sch_free (g_schema);
+
+    netconf_logging_shutdown ();
 }

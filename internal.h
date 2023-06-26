@@ -43,20 +43,41 @@ extern gboolean apteryx_netconf_verbose;
         syslog (LOG_DEBUG, fmt, ## args); \
         printf (fmt, ## args); \
     }
+#define NOTICE(fmt, args...) \
+    { \
+        syslog (LOG_NOTICE, fmt, ## args); \
+        printf (fmt, ## args); \
+    }
 #define ERROR(fmt, args...) \
     { \
         syslog (LOG_CRIT, fmt, ## args); \
         fprintf (stderr, fmt, ## args); \
     }
 
+typedef enum
+{
+    LOG_NONE                    = 0,
+    LOG_EDIT_CONFIG             = (1 << 0),  /* Log edit-config requests */
+    LOG_GET                     = (1 << 1),  /* Log get requests */
+    LOG_GET_CONFIG              = (1 << 2),  /* Log get-config requests */
+    LOG_KILL_SESSION            = (1 << 3),  /* Log kill-session requests */
+    LOG_LOCK                    = (1 << 4),  /* Log lock requests */
+    LOG_UNLOCK                  = (1 << 5),  /* Log unlock requests */
+} logging_flags;
+
 /* Main loop */
 extern GMainLoop *g_loop;
 
 /* Netconf routines */
 void netconf_close_open_sessions (void);
-gboolean netconf_init (const char *path, const char *supported,
+gboolean netconf_init (const char *path, const char *supported, const char *logging,
                        const char *cp, const char *rm);
 void *netconf_handle_session (int fd);
 void netconf_shutdown (void);
+
+/* Logging routines */
+int netconf_logging_init (const char *path, const char *logging);
+void netconf_logging_shutdown (void);
+bool netconf_logging_test_flag (int flag);
 
 #endif /* _INTERNAL_H_ */
