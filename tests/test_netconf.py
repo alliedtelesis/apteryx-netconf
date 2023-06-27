@@ -51,7 +51,7 @@ def test_rpc_data():
 def test_rpc_ok():
     config = """
 <config>
-  <test>
+  <test xmlns="http://test.com/ns/yang/testing">
     <settings>
         <priority>5</priority>
     </settings>

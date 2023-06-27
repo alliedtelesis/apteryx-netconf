@@ -6,7 +6,7 @@ def test_with_defaults_explicit():
     xpath = '/interfaces'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <interfaces>
+    <interfaces xmlns="http://example.com/ns/interfaces">
         <interface>
             <name>eth0</name>
             <mtu>8192</mtu>
@@ -37,7 +37,7 @@ def test_with_defaults_report_all():
     xpath = '/interfaces'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <interfaces>
+    <interfaces xmlns="http://example.com/ns/interfaces">
         <interface>
             <name>eth0</name>
             <mtu>8192</mtu>
@@ -69,7 +69,7 @@ def test_with_defaults_trim():
     xpath = '/interfaces'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <interfaces>
+    <interfaces xmlns="http://example.com/ns/interfaces">
         <interface>
             <name>eth0</name>
             <mtu>8192</mtu>
@@ -97,7 +97,7 @@ def test_with_defaults_explicit_subtree():
     select = '<interfaces></interfaces>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <interfaces>
+    <interfaces xmlns="http://example.com/ns/interfaces">
         <interface>
             <name>eth0</name>
             <mtu>8192</mtu>
@@ -128,7 +128,7 @@ def test_with_defaults_report_all_subtree():
     select = '<interfaces></interfaces>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <interfaces>
+    <interfaces xmlns="http://example.com/ns/interfaces">
         <interface>
             <name>eth0</name>
             <mtu>8192</mtu>
@@ -160,7 +160,7 @@ def test_with_defaults_trim_subtree():
     select = '<interfaces></interfaces>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <interfaces>
+    <interfaces xmlns="http://example.com/ns/interfaces">
         <interface>
             <name>eth0</name>
             <mtu>8192</mtu>

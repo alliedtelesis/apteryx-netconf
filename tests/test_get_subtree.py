@@ -29,10 +29,10 @@ def test_get_subtree_empty_filter():
 
 
 def test_get_subtree_node():
-    select = '<test><settings><debug/></settings></test>'
+    select = '<test xmlns="http://test.com/ns/yang/testing"><settings><debug/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <debug>enable</debug>
         </settings>
@@ -47,7 +47,7 @@ def test_get_subtree_node_ns_none():
     select = '<test><settings><priority/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <priority>1</priority>
         </settings>
@@ -61,7 +61,7 @@ def test_get_subtree_node_ns_aug_none():
     select = '<test><settings><volume/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <volume>1</volume>
         </settings>
@@ -76,7 +76,7 @@ def test_get_subtree_node_ns_default():
     select = '<test xmlns="https://github.com/alliedtelesis/apteryx"><settings><priority/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <priority>1</priority>
         </settings>
@@ -90,7 +90,7 @@ def test_get_subtree_node_ns_aug_default():
     select = '<test xmlns="https://github.com/alliedtelesis/apteryx"><settings><volume/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <volume>1</volume>
         </settings>
@@ -105,7 +105,7 @@ def test_get_subtree_node_ns_other_no_prefix():
     select = '<test xmlns="http://test.com/ns/yang/testing-2"><settings><priority/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing-2">
         <settings>
             <priority>2</priority>
         </settings>
@@ -119,9 +119,9 @@ def test_get_subtree_node_ns_aug_other_no_prefix():
     select = '<test xmlns="http://test.com/ns/yang/testing-2"><settings><speed xmlns="http://test.com/ns/yang/testing2-augmented"/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing-2">
         <settings>
-            <speed>2</speed>
+            <speed xmlns="http://test.com/ns/yang/testing2-augmented">2</speed>
         </settings>
     </test>
 </nc:data>
@@ -136,7 +136,7 @@ def test_get_subtree_node_ns_other_prefix():
     select = '<t2:test xmlns:t2="http://test.com/ns/yang/testing-2"><t2:settings><t2:priority/></t2:settings></t2:test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing-2">
         <settings>
             <priority>2</priority>
         </settings>
@@ -150,9 +150,9 @@ def test_get_subtree_node_ns_aug_other_prefix():
     select = '<t2:test xmlns:t2="http://test.com/ns/yang/testing-2" xmlns:aug2="http://test.com/ns/yang/testing2-augmented"><t2:settings><aug2:speed/></t2:settings></t2:test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing-2">
         <settings>
-            <speed>2</speed>
+            <speed xmlns="http://test.com/ns/yang/testing2-augmented">2</speed>
         </settings>
     </test>
 </nc:data>
@@ -165,7 +165,7 @@ def test_get_subtree_empty():
     select = '<test><settings><empty/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <empty></empty>
         </settings>
@@ -179,7 +179,7 @@ def test_get_subtree_trunk():
     select = '<test><settings/></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <debug>enable</debug>
             <enable>true</enable>
@@ -196,7 +196,7 @@ def test_get_subtree_multi_parameters():
     select = '<test><settings><debug/><priority/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <debug>enable</debug>
             <priority>1</priority>
@@ -211,7 +211,7 @@ def test_get_subtree_list_container():
     select = '<test><animals/></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-  <test>
+  <test xmlns="http://test.com/ns/yang/testing">
     <animals>
       <animal>
         <name>cat</name>
@@ -254,7 +254,7 @@ def test_get_subtree_list_element():
     select = '<test><animals><animal/></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-  <test>
+  <test xmlns="http://test.com/ns/yang/testing">
     <animals>
       <animal>
         <name>cat</name>
@@ -297,7 +297,7 @@ def test_get_subtree_list_parameter():
     select = '<test><animals><animal><name/></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-  <test>
+  <test xmlns="http://test.com/ns/yang/testing">
     <animals>
       <animal>
         <name>cat</name>
@@ -325,7 +325,7 @@ def test_get_subtree_selection_multi():
     select = '<test><animals><animal><name/><type/></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-  <test>
+  <test xmlns="http://test.com/ns/yang/testing">
     <animals>
       <animal>
         <name>cat</name>
@@ -357,7 +357,7 @@ def test_get_subtree_select_one_node():
     select = '<test><animals><animal><name>cat</name></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat</name>
@@ -376,7 +376,7 @@ def test_get_subtree_select_one_with_colon():
     select = '<test><animals><animal><name>cat:ty</name></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat:ty</name>
@@ -393,7 +393,7 @@ def test_get_subtree_select_one_elements():
     select = '<test><animals><animal><name>cat</name><type/></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat</name>
@@ -421,7 +421,7 @@ def test_get_subtree_select_multi():
     """
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat</name>
@@ -442,7 +442,7 @@ def test_get_subtree_select_attr_named_only():
     select = '<test><animals><animal name="cat"/></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat</name>
@@ -459,7 +459,7 @@ def test_get_subtree_select_attr_named_element():
     select = '<test><animals><animal name="mouse"><type/></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>mouse</name>
@@ -480,7 +480,7 @@ def test_get_subtree_select_no_key_other_field():
     select = '<test><animals><animal><type/></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <type>big</type>
@@ -509,7 +509,7 @@ def test_get_subtree_select_no_key_other_field_value():
     select = '<test><animals><animal><type>little</type></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <type>big</type>
@@ -537,7 +537,7 @@ def test_get_subtree_select_key_other_field_value():
     select = '<test><animals><animal><name/><type>little</type></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat</name>
@@ -581,7 +581,7 @@ def test_get_subtree_select_key_value_other_field_value():
     """
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>mouse</name>

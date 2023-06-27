@@ -9,7 +9,7 @@ def test_get_xpath_node():
     xpath = '/test/settings/debug'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <debug>enable</debug>
         </settings>
@@ -25,7 +25,7 @@ def test_get_xpath_node_ns_none():
     xpath = '/test/settings/priority'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <priority>1</priority>
         </settings>
@@ -40,7 +40,7 @@ def test_get_xpath_node_ns_aug_none():
     xpath = '/test/settings/volume'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <volume>1</volume>
         </settings>
@@ -51,13 +51,11 @@ def test_get_xpath_node_ns_aug_none():
     assert xml.find('./{*}test/{*}settings/{*}volume').text == '1'
 
 
-# Default namespace is the same as the internal default namespace
-@pytest.mark.skip(reason="does not work yet")
 def test_get_xpath_node_ns_default():
     xpath = '/test:test/settings/priority'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <priority>1</priority>
         </settings>
@@ -68,12 +66,11 @@ def test_get_xpath_node_ns_default():
     assert xml.find('./{*}test/{*}settings/{*}priority').text == '1'
 
 
-@pytest.mark.skip(reason="does not work yet")
 def test_get_xpath_node_ns_aug_default():
     xpath = '/test:test/settings/volume'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <volume>1</volume>
         </settings>
@@ -89,7 +86,7 @@ def test_get_xpath_node_ns_other():
     xpath = '/t2:test/t2:settings/t2:priority'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing-2">
         <settings>
             <priority>2</priority>
         </settings>
@@ -104,9 +101,9 @@ def test_get_xpath_node_ns_aug_other():
     xpath = '/t2:test/t2:settings/aug2:speed'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing-2">
         <settings>
-            <speed>2</speed>
+            <speed xmlns="http://test.com/ns/yang/testing2-augmented">2</speed>
         </settings>
     </test>
 </nc:data>
@@ -119,7 +116,7 @@ def test_get_xpath_trunk():
     xpath = '/test/settings'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <settings>
             <debug>enable</debug>
             <enable>true</enable>
@@ -136,7 +133,7 @@ def test_get_xpath_list_trunk():
     xpath = '/test/animals'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-  <test>
+  <test xmlns="http://test.com/ns/yang/testing">
     <animals>
       <animal>
         <name>cat</name>
@@ -179,7 +176,7 @@ def test_get_xpath_list_select_one_trunk():
     xpath = "/test/animals/animal[name='cat']"
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat</name>
@@ -196,7 +193,7 @@ def test_get_xpath_list_select_one_parameter():
     xpath = "/test/animals/animal[name='cat']/type"
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat</name>
@@ -214,7 +211,7 @@ def test_xpath_query_multi():
     xpath = ("/test/animals/animal[name='cat']/name | /test/animals/animal[name='dog']/name")
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
-    <test>
+    <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat</name>

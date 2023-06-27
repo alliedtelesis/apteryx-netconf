@@ -291,8 +291,8 @@ def test_edit_config_replace_one_full():
 </config>
 """
     xml = _edit_config_test(payload, post_xpath='/test/animals', inc_str=["cat", "dog", "mouse"])
-    assert xml.find('./{*}test/{*}animals/{*}animal[name="cat"]/{*}type').text == 'little'
-    assert xml.find('./{*}test/{*}animals/{*}animal[name="cat"]/{*}colour').text == 'tawny'
+    assert xml.find('./{*}test/{*}animals/{*}animal[{*}name="cat"]/{*}type').text == 'little'
+    assert xml.find('./{*}test/{*}animals/{*}animal[{*}name="cat"]/{*}colour').text == 'tawny'
 
 
 @pytest.mark.skip(reason="nothing found, no defaults even")
