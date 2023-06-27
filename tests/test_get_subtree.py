@@ -600,3 +600,32 @@ def test_get_subtree_missing():
     assert xml.tag == '{urn:ietf:params:xml:ns:netconf:base:1.0}data'
     assert len(xml.getchildren()) == 0
     print(etree.tostring(xml, pretty_print=True, encoding="unicode"))
+
+
+def test_get_multi_subtree_select_multi():
+    select = """
+<filter type="subtree">
+<interfaces xmlns="http://example.com/ns/interfaces">
+  <interface>
+    <name>eth2</name>
+  </interface>
+</interfaces>
+<test xmlns="http://test.com/ns/yang/testing">
+  <animals>
+    <animal>
+      <name>cat</name>
+    </animal>
+    <animal>
+      <name>dog</name>
+    </animal>
+  </animals>
+</test>
+</filter>
+    """
+    m = connect()
+    xml = m.get(select).data
+    print(etree.tostring(xml, pretty_print=True, encoding="unicode"))
+    assert xml.find('./{*}test/{*}animals/{*}animal/{*}name').text == 'cat'
+    assert xml.find('./{*}test/{*}animals/{*}animal[{*}name="cat"]/{*}type').text == 'big'
+    assert xml.find('./{*}interfaces/{*}interface[{*}name="eth2"]/{*}mtu').text == '9000'
+    m.close_session()

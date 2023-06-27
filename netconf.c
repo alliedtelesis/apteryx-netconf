@@ -47,6 +47,16 @@ static uint32_t netconf_session_id = 1;
 /* Maintain a list of open sessions */
 static GSList *open_sessions_list = NULL;
 
+#define ERR_MSG_NOT_SUPPORTED 0
+#define ERR_MSG_MISSING_ATTRIB 1
+#define ERR_MSG_MALFORMED 2
+
+static char *error_msgs[] = {
+    "operation-not-supported",
+    "missing-attribute",
+    "malformed-message",
+};
+
 /* Close open sessions */
 void
 netconf_close_open_sessions (void)
@@ -244,11 +254,13 @@ send_rpc_error (struct netconf_session *session, xmlNode * rpc, const char *erro
 }
 
 static bool
-send_rpc_data (struct netconf_session *session, xmlNode * rpc, xmlNode * data)
+send_rpc_data (struct netconf_session *session, xmlNode * rpc, GList *xml_list)
 {
     xmlDoc *doc;
+    xmlNode * data;
     xmlNode *child;
     xmlChar *xmlbuff;
+    GList *list;
     char *header = NULL;
     int len;
     bool ret = true;
@@ -256,7 +268,19 @@ send_rpc_data (struct netconf_session *session, xmlNode * rpc, xmlNode * data)
     /* Generate reply */
     doc = create_rpc ( BAD_CAST "rpc-reply", xmlGetProp (rpc, BAD_CAST "message-id"));
     child = xmlNewChild (xmlDocGetRootElement (doc), NULL, BAD_CAST "data", NULL);
-    xmlAddChildList (child, data);
+    if (!xml_list)
+    {
+        xmlAddChildList (child, NULL);
+    }
+    else
+    {
+        for (list = g_list_first (xml_list); list; list = g_list_next (list))
+        {
+            data = list->data;
+            xmlAddChildList (child, data);
+        }
+    }
+
     xmlDocDumpMemoryEnc (doc, &xmlbuff, &len, "UTF-8");
     header = g_strdup_printf ("\n#%d\n", len);
 
@@ -288,6 +312,9 @@ send_rpc_data (struct netconf_session *session, xmlNode * rpc, xmlNode * data)
     g_free (header);
     xmlFree (xmlbuff);
     xmlFreeDoc (doc);
+    if (xml_list)
+        g_list_free (xml_list);
+
     return ret;
 }
 
@@ -497,28 +524,241 @@ get_response_node (GNode *tree, int rdepth)
     return rnode;
 }
 
+static void
+get_query_to_xml (struct netconf_session *session, GNode *query, sch_node *rschema, GNode *rnode,
+                  int rdepth, GNode *qnode, int schflags, GList **xml_list)
+{
+    GNode *tree;
+    xmlNode *xml = NULL;
+
+    /* Query database */
+    DEBUG ("NETCONF: GET %s\n", query ? APTERYX_NAME (query) : "/");
+    if (netconf_logging_test_flag (LOG_GET | LOG_GET_CONFIG))
+        NOTICE ("%s: user:%s session-id:%d path:%s\n",
+                (schflags & SCH_F_CONFIG) ? "GET-CONFIG" : "GET", session->username, session->id,
+                query ? APTERYX_NAME (query) : "/");
+
+    tree = query ? apteryx_query (query) : get_full_tree ();
+    apteryx_free_tree (query);
+
+    if (rschema && (schflags & SCH_F_ADD_DEFAULTS))
+    {
+        if (tree)
+        {
+            rnode = get_response_node (tree, rdepth);
+            sch_traverse_tree (g_schema, rschema, rnode, schflags);
+        }
+        else if (!tree)
+        {
+            /* Nothing in the database, but we may have defaults! */
+            tree = query;
+            query = NULL;
+            sch_traverse_tree (g_schema, rschema, qnode, schflags);
+        }
+    }
+
+    if (tree && (schflags & SCH_F_TRIM_DEFAULTS))
+    {
+        /* Get rid of any unwanted nodes */
+        GNode *rnode = get_response_node (tree, rdepth);
+        sch_traverse_tree (g_schema, rschema, rnode, schflags);
+     }
+
+    /* Convert result to XML */
+    xml = tree ? sch_gnode_to_xml (g_schema, NULL, tree, schflags) : NULL;
+    apteryx_free_tree (tree);
+    *xml_list = g_list_append (*xml_list, xml);
+}
+
+static void
+get_query_schema (struct netconf_session *session, GNode *query, sch_node *qschema,
+                  int schflags, bool is_filter, GList **xml_list)
+{
+    GNode *rnode = NULL;
+    sch_node *rschema = NULL;
+    GNode *qnode = NULL;
+    int qdepth = 0;
+    int rdepth;
+    int diff;
+
+    /* Get the depth of the response which is the depth of the query
+        OR the up until the first path wildcard */
+    qdepth = g_node_max_height (query);
+    rdepth = 1;
+    rnode = query;
+    while (rnode &&
+            g_node_n_children (rnode) == 1 &&
+            g_strcmp0 (APTERYX_NAME (g_node_first_child (rnode)), "*") != 0)
+    {
+        rnode = g_node_first_child (rnode);
+        rdepth++;
+    }
+
+    qnode = rnode;
+    while (qnode->children)
+        qnode = qnode->children;
+
+    if (qdepth && qnode && !g_node_first_child (qnode) &&
+            g_strcmp0 (APTERYX_NAME (qnode), "*") == 0)
+        qdepth--;
+
+    rschema = qschema;
+    diff = qdepth - rdepth;
+    while (diff--)
+        rschema = sch_node_parent (rschema);
+
+    if (sch_node_parent (rschema) && sch_is_list (sch_node_parent (rschema)))
+    {
+        /* We need to present the list rather than the key */
+        rschema = sch_node_parent (rschema);
+        rdepth--;
+    }
+
+    /* Without a query we may need to add a wildcard to get everything from here down */
+    if (is_filter && qdepth == g_node_max_height (query) && !(schflags & SCH_F_DEPTH_ONE))
+    {
+        if (qschema && sch_node_child_first (qschema) && !(schflags & SCH_F_STRIP_DATA))
+        {
+            /* Get everything from here down if we do not already have a star */
+            if (!g_node_first_child (qnode) && g_strcmp0 (APTERYX_NAME (qnode), "*") != 0)
+            {
+                APTERYX_NODE (qnode, g_strdup ("*"));
+                DEBUG ("%*s%s\n", qdepth * 2, " ", "*");
+            }
+        }
+    }
+
+    get_query_to_xml (session, query, rschema, rnode, rdepth, qnode, schflags, xml_list);
+}
+
+static int
+get_process_action (struct netconf_session *session, xmlNode *node, int schflags,
+                    GList **xml_list, char **error)
+{
+    char *attr;
+    xmlNode *tnode;
+    GNode *query = NULL;
+    sch_xml_to_gnode_parms parms;
+    sch_node *qschema = NULL;
+    bool is_filter = false;
+
+    /* Check the requested datastore */
+    if (g_strcmp0 ((char *) node->name, "source") == 0)
+    {
+        if (!xmlFirstElementChild (node) ||
+            g_strcmp0 ((char *) xmlFirstElementChild (node)->name, "running") != 0)
+        {
+            VERBOSE ("Datastore \"%s\" not supported",
+                        (char *) xmlFirstElementChild (node)->name);
+            *error = error_msgs[ERR_MSG_NOT_SUPPORTED];
+            return -1;
+        }
+    }
+    /* Parse any filters */
+    else if (g_strcmp0 ((char *) node->name, "filter") == 0)
+    {
+        attr = (char *) xmlGetProp (node, BAD_CAST "type");
+
+        /* Default type is "subtree" */
+        if (attr == NULL)
+        {
+            attr = g_strdup ("subtree");    /* for the later free */
+        }
+        if (g_strcmp0 (attr, "xpath") == 0)
+        {
+            free (attr);
+            attr = (char *) xmlGetProp (node, BAD_CAST "select");
+            if (!attr)
+            {
+                VERBOSE ("XPATH filter missing select attribute");
+                *error = error_msgs[ERR_MSG_MISSING_ATTRIB];
+                return -1;
+            }
+            VERBOSE ("FILTER: XPATH: %s\n", attr);
+            is_filter = true;
+            query = sch_path_to_gnode (g_schema, NULL, attr, schflags | SCH_F_XPATH, &qschema);
+            if (!query)
+            {
+                VERBOSE ("XPATH: malformed filter\n");
+                *error = error_msgs[ERR_MSG_MALFORMED];
+                return -1;
+            }
+
+            if (qschema)
+            {
+                if (sch_is_leaf (qschema) && !sch_is_readable (qschema))
+                {
+                    VERBOSE ("NETCONF: Path \"%s\" not readable\n", attr);
+                    *error = error_msgs[ERR_MSG_NOT_SUPPORTED];
+                    return -1;
+                }
+                get_query_schema (session, query, qschema, schflags, is_filter, xml_list);
+            }
+        }
+        else if (g_strcmp0 (attr, "subtree") == 0)
+        {
+            if (!xmlFirstElementChild (node))
+            {
+                VERBOSE ("SUBTREE: empty query\n");
+                free (attr);
+                *xml_list = g_list_append (*xml_list, NULL);
+                return 0;
+            }
+
+            for (tnode = xmlFirstElementChild (node); tnode; tnode = xmlNextElementSibling (tnode))
+            {
+                qschema = NULL;
+                parms =
+                    sch_xml_to_gnode (g_schema, NULL, tnode,
+                                        schflags | SCH_F_STRIP_DATA | SCH_F_STRIP_KEY, "none",
+                                        false, &qschema);
+                query = sch_parm_tree (parms);
+                sch_parm_free (parms);
+                if (!query)
+                {
+                    VERBOSE ("SUBTREE: malformed query\n");
+                    free (attr);
+                    *error = error_msgs[ERR_MSG_MALFORMED];
+                    return -1;
+                }
+
+                if (qschema)
+                {
+                    if (sch_is_leaf (qschema) && !sch_is_readable (qschema))
+                    {
+                        VERBOSE ("NETCONF: Path \"%s\" not readable\n", attr);
+                        *error = error_msgs[ERR_MSG_NOT_SUPPORTED];
+                        return -1;
+                    }
+                    get_query_schema (session, query, qschema, schflags, is_filter, xml_list);
+                }
+            }
+        }
+        else
+        {
+            VERBOSE ("FILTER: unsupported/missing type (%s)\n", attr);
+            free (attr);
+            *error = error_msgs[ERR_MSG_NOT_SUPPORTED];
+            return -1;
+        }
+        free (attr);
+    }
+
+    return 0;
+}
+
 static bool
 handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only)
 {
     xmlNode *action = xmlFirstElementChild (rpc);
     xmlNode *node;
-    char *attr;
-    GNode *query = NULL;
-    sch_xml_to_gnode_parms parms;
-    GNode *tree;
-    xmlNode *xml = NULL;
+    char *error = NULL;
+    GList *xml_list = NULL;
+    GList *list;
     int schflags = 0;
     char *msg = NULL;
     char session_id_str[32];
     xmlNode *error_info;
-    sch_node *qschema = NULL;
-    GNode *rnode = NULL;
-    sch_node *rschema = NULL;
-    GNode *qnode;
-    bool is_filter = false;
-    int qdepth = 0;
-    int rdepth;
-    int diff;
 
     if (apteryx_netconf_verbose)
         schflags |= SCH_F_DEBUG;
@@ -559,7 +799,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
             {
                 ERROR ("WITH-DEFAULTS: No support for with-defaults query type \"%s\"\n", defaults_type);
                 free (defaults_type);
-                return send_rpc_error (session, rpc, "operation-not-supported", NULL, NULL);
+                return send_rpc_error (session, rpc, error_msgs[ERR_MSG_NOT_SUPPORTED], NULL, NULL);
             }
             free (defaults_type);
             break;
@@ -569,171 +809,28 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
     /* Parse the remaining options */
     for (node = xmlFirstElementChild (action); node; node = xmlNextElementSibling (node))
     {
-        /* Check the requested datastore */
-        if (g_strcmp0 ((char *) node->name, "source") == 0)
-        {
-            if (!xmlFirstElementChild (node) ||
-                g_strcmp0 ((char *) xmlFirstElementChild (node)->name, "running") != 0)
-            {
-                VERBOSE ("Datastore \"%s\" not supported",
-                         (char *) xmlFirstElementChild (node)->name);
-                return send_rpc_error (session, rpc, "operation-not-supported", NULL, NULL);
-            }
-        }
-        /* Parse any filters */
-        else if (g_strcmp0 ((char *) node->name, "filter") == 0)
-        {
-            attr = (char *) xmlGetProp (node, BAD_CAST "type");
+        if (g_strcmp0 ((char *) node->name, "with-defaults") == 0)
+            continue;
 
-            /* Default type is "subtree" */
-            if (attr == NULL)
+        if (get_process_action (session, node, schflags, &xml_list, &error) < 0)
+        {
+            /* Cleanup any requests added to the xml_list before hitting an error */
+            for (list = g_list_first (xml_list); list; list = g_list_next (list))
             {
-                attr = g_strdup ("subtree");    /* for the later free */
+                xmlFree (list->data);
             }
-            if (g_strcmp0 (attr, "xpath") == 0)
-            {
-                free (attr);
-                attr = (char *) xmlGetProp (node, BAD_CAST "select");
-                if (!attr)
-                {
-                    VERBOSE ("XPATH filter missing select attribute");
-                    return send_rpc_error (session, rpc, "missing-attribute", NULL, NULL);
-                }
-                VERBOSE ("FILTER: XPATH: %s\n", attr);
-                is_filter = true;
-                query = sch_path_to_gnode (g_schema, NULL, attr, schflags | SCH_F_XPATH, &qschema);
-                if (!query)
-                {
-                    VERBOSE ("XPATH: malformed filter\n");
-                    return send_rpc_error (session, rpc, "malformed-message", NULL, NULL);
-                }
-            }
-            else if (g_strcmp0 (attr, "subtree") == 0)
-            {
-                if (!xmlFirstElementChild (node))
-                {
-                    VERBOSE ("SUBTREE: empty query\n");
-                    free (attr);
-                    return send_rpc_data (session, rpc, NULL);
-                }
-                parms =
-                    sch_xml_to_gnode (g_schema, NULL, xmlFirstElementChild (node),
-                                      schflags | SCH_F_STRIP_DATA | SCH_F_STRIP_KEY, "none",
-                                      false, &qschema);
-                query = sch_parm_tree (parms);
-                sch_parm_free (parms);
-                if (!query)
-                {
-                    VERBOSE ("SUBTREE: malformed query\n");
-                    free (attr);
-                    return send_rpc_error (session, rpc, "malformed-message", NULL, NULL);
-                }
-            }
-            else
-            {
-                VERBOSE ("FILTER: unsupported/missing type (%s)\n", attr);
-                free (attr);
-                return send_rpc_error (session, rpc, "operation-not-supported", NULL, NULL);
-            }
-            free (attr);
+            g_list_free (xml_list);
+
+            return send_rpc_error (session, rpc, error, NULL, NULL);
         }
     }
 
-    if (query && qschema)
-    {
-        if (sch_is_leaf (qschema) && !sch_is_readable (qschema))
-        {
-            VERBOSE ("NETCONF: Path \"%s\" not readable\n", attr);
-            return send_rpc_error (session, rpc, "operation-not-supported", NULL, NULL);
-        }
-
-        /* Get the depth of the response which is the depth of the query
-           OR the up until the first path wildcard */
-        qdepth = g_node_max_height (query);
-        rdepth = 1;
-        rnode = query;
-        while (rnode &&
-               g_node_n_children (rnode) == 1 &&
-               g_strcmp0 (APTERYX_NAME (g_node_first_child (rnode)), "*") != 0)
-        {
-            rnode = g_node_first_child (rnode);
-            rdepth++;
-        }
-
-        qnode = rnode;
-        while (qnode->children)
-            qnode = qnode->children;
-
-        if (qdepth && qnode && !g_node_first_child (qnode) &&
-                g_strcmp0 (APTERYX_NAME (qnode), "*") == 0)
-            qdepth--;
-
-        rschema = qschema;
-        diff = qdepth - rdepth;
-        while (diff--)
-            rschema = sch_node_parent (rschema);
-
-        if (sch_node_parent (rschema) && sch_is_list (sch_node_parent (rschema)))
-        {
-            /* We need to present the list rather than the key */
-            rschema = sch_node_parent (rschema);
-            rdepth--;
-        }
-
-        /* Without a query we may need to add a wildcard to get everything from here down */
-        if (is_filter && qdepth == g_node_max_height (query) && !(schflags & SCH_F_DEPTH_ONE))
-        {
-            if (qschema && sch_node_child_first (qschema) && !(schflags & SCH_F_STRIP_DATA))
-            {
-                /* Get everything from here down if we do not already have a star */
-                if (!g_node_first_child (qnode) && g_strcmp0 (APTERYX_NAME (qnode), "*") != 0)
-                {
-                    APTERYX_NODE (qnode, g_strdup ("*"));
-                    DEBUG ("%*s%s\n", qdepth * 2, " ", "*");
-                }
-            }
-        }
-    }
-
-    /* Query database */
-    DEBUG ("NETCONF: GET %s\n", query ? APTERYX_NAME (query) : "/");
-    if (netconf_logging_test_flag (LOG_GET | LOG_GET_CONFIG))
-        NOTICE ("%s: user:%s session-id:%d path:%s\n",
-              config_only ? "GET-CONFIG" : "GET", session->username, session->id,
-              query ? APTERYX_NAME (query) : "/");
-
-    tree = query ? apteryx_query (query) : get_full_tree ();
-    apteryx_free_tree (query);
-
-    if (rschema && (schflags & SCH_F_ADD_DEFAULTS))
-    {
-        if (tree)
-        {
-            rnode = get_response_node (tree, rdepth);
-            sch_traverse_tree (g_schema, rschema, rnode, schflags);
-        }
-        else if (!tree)
-        {
-            /* Nothing in the database, but we may have defaults! */
-            tree = query;
-            query = NULL;
-            sch_traverse_tree (g_schema, rschema, qnode, schflags);
-        }
-    }
-
-    if (tree && rschema && (schflags & SCH_F_TRIM_DEFAULTS))
-    {
-        /* Get rid of any unwanted nodes */
-        GNode *rnode = get_response_node (tree, rdepth);
-        sch_traverse_tree (g_schema, rschema, rnode, schflags);
-     }
-
-    /* Convert result to XML */
-    xml = tree ? sch_gnode_to_xml (g_schema, NULL, tree, schflags) : NULL;
-    apteryx_free_tree (tree);
+    /* Catch for get without filter */
+    if (!xml_list)
+        get_query_to_xml (session, NULL, NULL, NULL, 0, NULL, schflags, &xml_list);
 
     /* Send response */
-    send_rpc_data (session, rpc, xml);
+    send_rpc_data (session, rpc, xml_list);
 
     return true;
 }
@@ -800,7 +897,7 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
     {
         VERBOSE ("Datastore \"%s\" not supported",
                  (char *) xmlFirstElementChild (node)->name);
-        return send_rpc_error (session, rpc, "operation-not-supported", NULL, NULL);
+        return send_rpc_error (session, rpc, error_msgs[ERR_MSG_NOT_SUPPORTED], NULL, NULL);
     }
 
     //TODO Check default-operation
@@ -918,7 +1015,7 @@ handle_lock (struct netconf_session *session, xmlNode * rpc)
     {
         VERBOSE ("Datastore \"%s\" not supported",
                  (char *) xmlFirstElementChild (node)->name);
-        return send_rpc_error (session, rpc, "operation-not-supported", NULL, NULL);
+        return send_rpc_error (session, rpc, error_msgs[ERR_MSG_NOT_SUPPORTED], NULL, NULL);
     }
 
     /* Attempt to acquire lock */
@@ -968,7 +1065,7 @@ handle_unlock (struct netconf_session *session, xmlNode * rpc)
     {
         VERBOSE ("Datastore \"%s\" not supported",
                  (char *) xmlFirstElementChild (node)->name);
-        return send_rpc_error (session, rpc, "operation-not-supported", NULL, NULL);
+        return send_rpc_error (session, rpc, error_msgs[ERR_MSG_NOT_SUPPORTED], NULL, NULL);
     }
 
     /* Check unlock operation validity */
@@ -1282,7 +1379,7 @@ netconf_handle_session (int fd)
         else
         {
             VERBOSE ("Unknown RPC (%s)\n", child->name);
-            send_rpc_error (session, rpc, "operation-not-supported", NULL, NULL);
+            send_rpc_error (session, rpc, error_msgs[ERR_MSG_NOT_SUPPORTED], NULL, NULL);
             xmlFreeDoc (doc);
             g_free (message);
             break;
