@@ -638,9 +638,12 @@ get_process_action (struct netconf_session *session, xmlNode *node, int schflags
     char *attr;
     xmlNode *tnode;
     GNode *query = NULL;
+    gchar **split;
     sch_xml_to_gnode_parms parms;
     sch_node *qschema = NULL;
     bool is_filter = false;
+    int i;
+    int count;
 
     /* Check the requested datastore */
     if (g_strcmp0 ((char *) node->name, "source") == 0)
@@ -676,24 +679,36 @@ get_process_action (struct netconf_session *session, xmlNode *node, int schflags
             }
             VERBOSE ("FILTER: XPATH: %s\n", attr);
             is_filter = true;
-            query = sch_path_to_gnode (g_schema, NULL, attr, schflags | SCH_F_XPATH, &qschema);
-            if (!query)
+            split = g_strsplit (attr, "|", -1);
+            count = g_strv_length (split);
+            for (i = 0; i < count; i++)
             {
-                VERBOSE ("XPATH: malformed filter\n");
-                *error = error_msgs[ERR_MSG_MALFORMED];
-                return -1;
-            }
-
-            if (qschema)
-            {
-                if (sch_is_leaf (qschema) && !sch_is_readable (qschema))
+                char *path = g_strstrip (split[i]);
+                qschema = NULL;
+                query = sch_path_to_gnode (g_schema, NULL, path, schflags | SCH_F_XPATH, &qschema);
+                if (!query)
                 {
-                    VERBOSE ("NETCONF: Path \"%s\" not readable\n", attr);
-                    *error = error_msgs[ERR_MSG_NOT_SUPPORTED];
+                    VERBOSE ("XPATH: malformed filter\n");
+                    free (attr);
+                    g_strfreev(split);
+                    *error = error_msgs[ERR_MSG_MALFORMED];
                     return -1;
                 }
-                get_query_schema (session, query, qschema, schflags, is_filter, xml_list);
+
+                if (qschema)
+                {
+                    if (sch_is_leaf (qschema) && !sch_is_readable (qschema))
+                    {
+                        VERBOSE ("NETCONF: Path \"%s\" not readable\n", attr);
+                        free (attr);
+                        g_strfreev(split);
+                        *error = error_msgs[ERR_MSG_NOT_SUPPORTED];
+                        return -1;
+                    }
+                    get_query_schema (session, query, qschema, schflags, is_filter, xml_list);
+                }
             }
+            g_strfreev(split);
         }
         else if (g_strcmp0 (attr, "subtree") == 0)
         {

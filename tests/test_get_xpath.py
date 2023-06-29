@@ -1,4 +1,3 @@
-import pytest
 from conftest import _get_test_with_filter
 
 
@@ -206,21 +205,49 @@ def test_get_xpath_list_select_one_parameter():
     _get_test_with_filter(xpath, expected, f_type='xpath')
 
 
-@pytest.mark.skip(reason="does not work yet")
 def test_xpath_query_multi():
-    xpath = ("/test/animals/animal[name='cat']/name | /test/animals/animal[name='dog']/name")
+    xpath = ("/test/animals/animal[name='cat']/type | /test/animals/animal[name='dog']/colour")
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
     <test xmlns="http://test.com/ns/yang/testing">
         <animals>
             <animal>
                 <name>cat</name>
-            </animal>
-            <animal>
-                <name>dog</name>
+                <type>big</type>
             </animal>
         </animals>
     </test>
+    <test xmlns="http://test.com/ns/yang/testing">
+        <animals>
+            <animal>
+                <name>dog</name>
+                <colour>brown</colour>
+            </animal>
+        </animals>
+    </test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_multi_xpath_select_multi():
+    xpath = ("/test/animals/animal[name='cat']/type | /interfaces/interface[name='eth2']/mtu")
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>cat</name>
+        <type>big</type>
+      </animal>
+    </animals>
+  </test>
+  <interfaces xmlns="http://example.com/ns/interfaces">
+    <interface>
+      <name>eth2</name>
+      <mtu>9000</mtu>
+    </interface>
+  </interfaces>
 </nc:data>
     """
     _get_test_with_filter(xpath, expected, f_type='xpath')
