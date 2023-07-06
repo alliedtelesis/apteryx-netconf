@@ -2,6 +2,9 @@ from conftest import connect
 from random import randint
 import re
 import time
+import socket
+import os
+import select
 
 OK_REGEX_PATTERN = "<nc:ok/>"
 
@@ -224,3 +227,20 @@ def test_multi_kill():
     response = None
     response = m1.close_session()
     assert (response.ok is True)
+
+
+def test_connect_hello():
+    cwd = os.getcwd()
+    unix_path = cwd + '/.build/apteryx-netconf.sock'
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(unix_path)
+    sock.setblocking(0)
+    ready = select.select([sock], [], [], 2)
+    if ready[0]:
+        data = sock.recv(4096)
+        sock.close()
+        result = data.decode('utf-8')
+        assert (result.find('<nc:hello xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">') > 0)
+    else:
+        sock.close()
+        assert (False)

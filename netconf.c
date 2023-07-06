@@ -412,13 +412,8 @@ static bool
 handle_hello (struct netconf_session *session)
 {
     bool ret = true;
-    xmlDoc *doc = NULL;
-    xmlNode *root, *node, *child;
-    xmlChar *hello_resp = NULL;
     char buffer[4096];
-    char session_id_str[32];
     char *endpt;
-    int hello_resp_len = 0;
     int len;
 
     /* Read all of the hello from the peer */
@@ -445,7 +440,19 @@ handle_hello (struct netconf_session *session)
         return false;
     }
 
-    /* Generate reply */
+    return ret;
+}
+
+static bool
+send_hello (struct netconf_session *session)
+{
+    bool ret = true;
+    xmlDoc *doc = NULL;
+    xmlNode *root, *node, *child;
+    xmlChar *hello_resp = NULL;
+    char session_id_str[32];
+    int hello_resp_len = 0;
+
     doc = create_rpc (BAD_CAST "hello", NULL);
     root = xmlDocGetRootElement (doc);
     node = xmlNewChild (root, NULL, BAD_CAST "capabilities", NULL);
@@ -1302,6 +1309,13 @@ netconf_handle_session (int fd)
         {
             session->username = g_strdup(pw->pw_name);
         }
+    }
+
+    /* Send our hello - RFC 6241 section 8.1 last paragraph */
+    if (!send_hello (session))
+    {
+        destroy_session (session);
+        return NULL;
     }
 
     /* Process hello's first */
