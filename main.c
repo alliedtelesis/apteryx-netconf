@@ -35,6 +35,7 @@ static gchar *rm_cmd = NULL;
 static GThread *g_thread = NULL;
 GMainLoop *g_loop = NULL;
 static int accept_fd = -1;
+static GThreadPool *workers = NULL;
 
 static gboolean
 termination_handler (gpointer arg1)
@@ -44,6 +45,7 @@ termination_handler (gpointer arg1)
     shutdown(accept_fd, SHUT_RD);
     close (accept_fd);
     netconf_close_open_sessions ();
+    g_thread_pool_free (workers, true, true);
     return FALSE;
 }
 
@@ -53,7 +55,6 @@ netconf_accept_thread (gpointer data)
 {
     const char *path = (const char *) data;
     struct sockaddr_un addr_un;
-    GThreadPool *workers;
 
     memset (&addr_un, 0, sizeof (addr_un));
     addr_un.sun_family = AF_UNIX;
@@ -82,7 +83,6 @@ netconf_accept_thread (gpointer data)
             g_thread_pool_push (workers, GINT_TO_POINTER (new_fd), NULL);
         }
     }
-    g_thread_pool_free (workers, true, false);
     VERBOSE ("NETCONF: Finished accepting clients\n");
     return NULL;
 }
@@ -145,6 +145,8 @@ main (int argc, char *argv[])
     g_unix_signal_add (SIGTERM, termination_handler, g_loop);
     signal (SIGPIPE, SIG_IGN);
     g_main_loop_run (g_loop);
+
+    g_thread_unref (g_thread);
 
     /* Cleanup Unix socket */
     unlink (unix_path);

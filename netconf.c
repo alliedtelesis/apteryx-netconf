@@ -31,6 +31,7 @@ struct netconf_session
     int fd;
     uint32_t id;
     char *username;
+    bool running;
 };
 
 static struct _running_ds_lock_t
@@ -1181,6 +1182,7 @@ create_session (int fd)
     struct netconf_session *session = g_malloc (sizeof (struct netconf_session));
     session->fd = fd;
     session->id = netconf_session_id++;
+    session->running = g_main_loop_is_running (g_loop);
 
     /* If the counter rounds, then the value 0 is not allowed */
     if (!session->id)
@@ -1228,7 +1230,7 @@ read_chunk_size (struct netconf_session *session)
     int len = 0;
 
     /* Read chunk-size (\n#<chunk-size>\n */
-    while (g_main_loop_is_running (g_loop))
+    while ((session->running = g_main_loop_is_running (g_loop)))
     {
         if (len > MAX_CHUNK_HEADER_SIZE || recv (session->fd, pt, 1, 0) != 1)
         {
@@ -1261,12 +1263,20 @@ receive_message (struct netconf_session *session, int *rlen)
     int len = 0;
 
     /* Read chunks until we get the end of message marker */
-    while (g_main_loop_is_running (g_loop))
+    while ((session->running = g_main_loop_is_running (g_loop)))
     {
         int chunk_len;
 
         /* Get chunk length */
         chunk_len = read_chunk_size (session);
+        if (!session->running)
+        {
+            g_free (message);
+            message = NULL;
+            len = 0;
+            break;
+        }
+
         if (!chunk_len)
         {
             /* End of message */
@@ -1301,6 +1311,12 @@ netconf_handle_session (int fd)
     struct ucred ucred;
     socklen_t len = sizeof (struct ucred);
 
+    if (!session->running)
+    {
+        destroy_session (session);
+        return NULL;
+    }
+
     /* Get user information from the calling process */
     if (getsockopt (fd, SOL_SOCKET, SO_PEERCRED, &ucred, &len) >= 0)
     {
@@ -1312,21 +1328,23 @@ netconf_handle_session (int fd)
     }
 
     /* Send our hello - RFC 6241 section 8.1 last paragraph */
-    if (!send_hello (session))
+    session->running = g_main_loop_is_running (g_loop);
+    if (!session->running || !send_hello (session))
     {
         destroy_session (session);
         return NULL;
     }
 
     /* Process hello's first */
-    if (!handle_hello (session))
+    session->running = g_main_loop_is_running (g_loop);
+    if (!session->running || !handle_hello (session))
     {
         destroy_session (session);
         return NULL;
     }
 
     /* Process chunked RPC's */
-    while (g_main_loop_is_running (g_loop))
+    while ((session->running = g_main_loop_is_running (g_loop)))
     {
         xmlDoc *doc = NULL;
         xmlNode *rpc, *child;
@@ -1335,7 +1353,7 @@ netconf_handle_session (int fd)
 
         /* Receive message */
         message = receive_message (session, &len);
-        if (!message)
+        if (!session->running || !message)
         {
             break;
         }
