@@ -693,7 +693,8 @@ get_process_action (struct netconf_session *session, xmlNode *node, int schflags
             {
                 char *path = g_strstrip (split[i]);
                 qschema = NULL;
-                query = sch_path_to_gnode (g_schema, NULL, path, schflags | SCH_F_XPATH, &qschema);
+                schflags |= SCH_F_XPATH;
+                query = sch_path_to_gnode (g_schema, NULL, path, schflags, &qschema);
                 if (!query)
                 {
                     VERBOSE ("XPATH: malformed filter\n");
