@@ -115,6 +115,7 @@ make -C $BUILD/../
 rc=$?; if [[ $rc != 0 ]]; then quit $rc; fi
 cp $BUILD/../models/*.xml $BUILD/etc/apteryx/schema/
 cp $BUILD/../models/*.map $BUILD/etc/apteryx/schema/
+cp $BUILD/../models/*.info $BUILD/etc/apteryx/schema/
 cp $BUILD/../models/netconf-logging-options $BUILD/etc/apteryx/schema/
 
 # Check tests

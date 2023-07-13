@@ -4,6 +4,24 @@ module example {
 
      prefix exam;
 
+     organization
+        "Dummy Organization";
+
+     revision 2023-04-04 {
+        description
+           "Initial revision";
+     }
+
+     feature ether {
+        description
+          "Interface has attribute ether";
+     }
+
+     feature fast {
+        description
+          "Interface has attribute fast";
+     }
+
      typedef status-type {
         description "Interface status";
         type enumeration {

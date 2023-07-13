@@ -336,8 +336,16 @@ schema_set_model_information (xmlNode * cap)
             strlen (loaded->model))
         {
             xml_child = xmlNewChild (cap, NULL, BAD_CAST "capability", NULL);
-            capability = g_strdup_printf ("%s?module=%s&amp;revision=%s",
-                                          loaded->ns_href, loaded->model, loaded->version);
+            if (loaded->features)
+            {
+                capability = g_strdup_printf ("%s?module=%s&amp;revision=%s&amp;features=%s",
+                                              loaded->ns_href, loaded->model, loaded->version, loaded->features);
+            }
+            else
+            {
+                capability = g_strdup_printf ("%s?module=%s&amp;revision=%s",
+                                              loaded->ns_href, loaded->model, loaded->version);
+            }
             xmlNodeSetContent (xml_child, BAD_CAST capability);
             g_free (capability);
         }
