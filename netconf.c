@@ -335,9 +335,22 @@ schema_set_model_information (xmlNode * cap)
             strlen (loaded->organization) && strlen (loaded->version) &&
             strlen (loaded->model))
         {
+            char *old;
             xml_child = xmlNewChild (cap, NULL, BAD_CAST "capability", NULL);
             capability = g_strdup_printf ("%s?module=%s&amp;revision=%s",
                                           loaded->ns_href, loaded->model, loaded->version);
+            if (loaded->features)
+            {
+                old = capability;
+                capability = g_strdup_printf ("%s&amp;features=%s", capability, loaded->features);
+                g_free (old);
+            }
+            if (loaded->deviations)
+            {
+                old = capability;
+                capability = g_strdup_printf ("%s&amp;deviations=%s", capability, loaded->deviations);
+                g_free (old);
+            }
             xmlNodeSetContent (xml_child, BAD_CAST capability);
             g_free (capability);
         }

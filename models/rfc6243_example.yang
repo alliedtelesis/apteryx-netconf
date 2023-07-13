@@ -4,6 +4,24 @@ module example {
 
      prefix exam;
 
+     organization
+        "Dummy Organization";
+
+     revision 2023-04-04 {
+        description
+           "Initial revision";
+     }
+
+     feature ether {
+        description
+          "Interface has attribute ether";
+     }
+
+     feature fast {
+        description
+          "Interface has attribute fast";
+     }
+
      typedef status-type {
         description "Interface status";
         type enumeration {
@@ -40,6 +58,13 @@ module example {
                 this interface.";
              type uint32;
              default 1500;
+           }
+
+           leaf dummy {
+             description
+               "Dummy field to test a deviation.";
+             type uint32;
+             default 10;
            }
 
            leaf status {
