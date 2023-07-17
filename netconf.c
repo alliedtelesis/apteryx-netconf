@@ -42,6 +42,10 @@ static struct _running_ds_lock_t
 
 #define NETCONF_BASE_1_0_END "]]>]]>"
 #define NETCONF_BASE_1_1_END "\n##\n"
+#define NETCONF_HELLO_END "hello>]]>]]>"
+#define NETCONF_HELLO_END_LEN 12
+#define HELLO_RX_SIZE 1024
+#define MAX_HELLO_RX_SIZE 16384
 
 static uint32_t netconf_session_id = 1;
 
@@ -426,16 +430,67 @@ static bool
 handle_hello (struct netconf_session *session)
 {
     bool ret = true;
-    char buffer[4096];
-    char *endpt;
+    char buf[HELLO_RX_SIZE];
+    char *pt;
+    char *buffer = NULL;
+    char *endpt = NULL;
     int len;
+    int recv_len = HELLO_RX_SIZE - NETCONF_HELLO_END_LEN;
+    int total_len = 0;
+    int offset = 0;
 
-    /* Read all of the hello from the peer */
+    /* Allow MSG_PEEK to read sequentially through the buffer */
+    setsockopt (session->fd, SOL_SOCKET, SO_PEEK_OFF, &offset, sizeof (offset));
+
+    /* Reserve NETCONF_HELLO_END_LEN bytes at the front of the buffer */
+    pt = buf + NETCONF_HELLO_END_LEN;
+    memset (buf, ' ', NETCONF_HELLO_END_LEN);
     while (g_main_loop_is_running (g_loop))
     {
-        len = recv (session->fd, buffer, 4096, 0);
-        // TODO
-        break;
+        len = recv (session->fd, pt, recv_len, MSG_PEEK);
+        if (len > 0)
+        {
+            char *match = g_strstr_len (buf, len + NETCONF_HELLO_END_LEN, NETCONF_HELLO_END);
+            if (match)
+            {
+                total_len += match - buf;
+                break;
+            }
+            else if (len < recv_len)
+            {
+                /* Reached the end of the message with no hello end */
+                return false;
+            }
+
+            if (len == recv_len)
+            {
+                /* Copy NETCONF_HELLO_END_LEN bytes from the end of the buffer to the front of the
+                   receive buffer so that we can guard against the end string being split over two recveives */
+                total_len += recv_len;
+                if (total_len >= MAX_HELLO_RX_SIZE)
+                {
+                    return false;
+                }
+                memcpy (buf, pt + recv_len - NETCONF_HELLO_END_LEN, NETCONF_HELLO_END_LEN);
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    buffer = g_malloc0 (total_len);
+    if (!buffer)
+    {
+        return false;
+    }
+
+    len = recv (session->fd, buffer, total_len, 0);
+    if (len <= 0)
+    {
+        g_free (buffer);
+        return false;
     }
 
     VERBOSE ("RX(%d):\n%.*s", len, (int) len, buffer);
@@ -445,15 +500,17 @@ handle_hello (struct netconf_session *session)
     if (!endpt)
     {
         ERROR ("XML: Invalid hello message (no 1.0 trailer)\n");
+        g_free (buffer);
         return false;
     }
 
     /* Validate hello */
     if (!validate_hello (buffer, (endpt - buffer)))
     {
-        return false;
+        ret = false;
     }
 
+    g_free (buffer);
     return ret;
 }
 
