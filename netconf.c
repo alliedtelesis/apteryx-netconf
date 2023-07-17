@@ -42,6 +42,7 @@ static struct _running_ds_lock_t
 
 #define NETCONF_BASE_1_0_END "]]>]]>"
 #define NETCONF_BASE_1_1_END "\n##\n"
+#define NETCONF_HELLO_END "/hello>]]>]]>"
 
 static uint32_t netconf_session_id = 1;
 
@@ -51,6 +52,7 @@ static GSList *open_sessions_list = NULL;
 #define ERR_MSG_NOT_SUPPORTED 0
 #define ERR_MSG_MISSING_ATTRIB 1
 #define ERR_MSG_MALFORMED 2
+#define MAX_HELLO_RX_SIZE 16384
 
 static char *error_msgs[] = {
     "operation-not-supported",
@@ -422,19 +424,76 @@ validate_hello (char *buffer, int buf_len)
     return found_base11;
 }
 
+static void
+process_remaining_buffer (char *buffer, int len, char **msg, int *chunk_len)
+{
+    char *endpt = NULL;
+    int hello_end_len;
+
+    endpt = g_strstr_len (buffer, len, NETCONF_HELLO_END);
+    *chunk_len = 0;
+    if (endpt)
+    {
+        hello_end_len = (endpt - buffer) + strlen (NETCONF_HELLO_END);
+        if (hello_end_len < len)
+        {
+            char *chunk_header;
+            char *next = NULL;
+            int remaining = len - hello_end_len;
+
+            /* Attempt to get a message chunk header */
+            chunk_header = &buffer[hello_end_len];
+            if (remaining >= 3 && chunk_header[0] == '\n')
+            {
+                next = strchr (&chunk_header[1], '\n');
+                if (next && chunk_header[1] == '#' && g_strcmp0 (chunk_header, "\n##\n") != 0)
+                {
+                    if (sscanf (chunk_header, "\n#%d", chunk_len) == 1)
+                    {
+                        VERBOSE ("RX(%ld): %.*s\n", (next - chunk_header), (int) (next - chunk_header),
+                                chunk_header);
+                    }
+                }
+            }
+
+            if (*chunk_len)
+            {
+                int skip = next - chunk_header + 1;
+                remaining -= skip;
+
+                /* If there is a valid chunk header, then save the message for later processing */
+                if (remaining >= *chunk_len)
+                {
+                    *msg = g_malloc0 (remaining + 1);
+                    g_strlcpy (*msg, next + 1, remaining);
+                }
+                else
+                {
+                    *chunk_len = 0;
+                }
+            }
+        }
+    }
+}
+
 static bool
-handle_hello (struct netconf_session *session)
+handle_hello (struct netconf_session *session, char **msg, int *chunk_len)
 {
     bool ret = true;
-    char buffer[4096];
-    char *endpt;
+    char *buffer;
+    char *endpt = NULL;
     int len;
 
     /* Read all of the hello from the peer */
+    buffer = g_malloc0 (MAX_HELLO_RX_SIZE);
+    if (!buffer)
+    {
+        return false;
+    }
+
     while (g_main_loop_is_running (g_loop))
     {
-        len = recv (session->fd, buffer, 4096, 0);
-        // TODO
+        len = recv (session->fd, buffer, MAX_HELLO_RX_SIZE, 0);
         break;
     }
 
@@ -445,15 +504,21 @@ handle_hello (struct netconf_session *session)
     if (!endpt)
     {
         ERROR ("XML: Invalid hello message (no 1.0 trailer)\n");
+        g_free (buffer);
         return false;
     }
 
     /* Validate hello */
-    if (!validate_hello (buffer, (endpt - buffer)))
+    if (validate_hello (buffer, (endpt - buffer)))
     {
-        return false;
+        process_remaining_buffer (buffer, len, msg, chunk_len);
+    }
+    else
+    {
+        ret = false;
     }
 
+    g_free (buffer);
     return ret;
 }
 
@@ -1324,6 +1389,8 @@ netconf_handle_session (int fd)
     struct netconf_session *session = create_session (fd);
     struct ucred ucred;
     socklen_t len = sizeof (struct ucred);
+    char *msg = NULL;
+    int chunk_len = 0;
 
     if (!session->running)
     {
@@ -1351,7 +1418,7 @@ netconf_handle_session (int fd)
 
     /* Process hello's first */
     session->running = g_main_loop_is_running (g_loop);
-    if (!session->running || !handle_hello (session))
+    if (!session->running || !handle_hello (session, &msg, &chunk_len))
     {
         destroy_session (session);
         return NULL;
@@ -1366,7 +1433,16 @@ netconf_handle_session (int fd)
         int len;
 
         /* Receive message */
-        message = receive_message (session, &len);
+        if (msg)
+        {
+            message = msg;
+            len = chunk_len;
+            msg = NULL;
+        }
+        else
+        {
+            message = receive_message (session, &len);
+        }
         if (!session->running || !message)
         {
             break;
