@@ -617,8 +617,6 @@ get_query_to_xml (struct netconf_session *session, GNode *query, sch_node *rsche
                 query ? APTERYX_NAME (query) : "/");
 
     tree = query ? apteryx_query (query) : get_full_tree ();
-    apteryx_free_tree (query);
-
     if (rschema && (schflags & SCH_F_ADD_DEFAULTS))
     {
         if (tree)
@@ -641,6 +639,7 @@ get_query_to_xml (struct netconf_session *session, GNode *query, sch_node *rsche
         GNode *rnode = get_response_node (tree, rdepth);
         sch_traverse_tree (g_schema, rschema, rnode, schflags);
      }
+    apteryx_free_tree (query);
 
     /* Convert result to XML */
     xml = tree ? sch_gnode_to_xml (g_schema, NULL, tree, schflags) : NULL;
