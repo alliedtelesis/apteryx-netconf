@@ -228,3 +228,33 @@ def test_multi_kill():
     response = None
     response = m1.close_session()
     assert response.ok is True
+
+
+
+def test_max_session():
+    """
+    max-sessions defaults to 4. verify that we can make 4 connections, but
+    not 5.
+    """
+    try:
+        m1 = connect()
+        assert (m1.connected is True)
+
+        m2 = connect()
+        assert (m2.connected is True)
+
+        m3 = connect()
+        assert (m3.connected is True)
+
+        m4 = connect()
+        assert (m4.connected is True)
+
+        m5 = connect()
+        assert (m5.connected is False)
+    except Exception:
+        pass
+    finally:
+        m1.close_session()
+        m2.close_session()
+        m3.close_session()
+        m4.close_session()

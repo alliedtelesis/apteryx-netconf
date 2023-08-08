@@ -54,8 +54,17 @@ static struct _running_ds_lock_t
 
 #define NETCONF_STATE_SESSIONS_PATH "/netconf-state/sessions/session"
 #define NETCONF_SESSION_STATUS "/netconf-state/sessions/session/*/status"
+#define NETCONF_CONFIG_MAX_SESSIONS "/netconf/config/max-sessions"
+#define NETCONF_STATE "/netconf/state"
+
+/* Defines for the max-sessions variable - the maximum number of sessions allowed */
+#define NETCONF_MAX_SESSIONS_MIN 1
+#define NETCONF_MAX_SESSIONS_MAX 10
+#define NETCONF_MAX_SESSIONS_DEF 4
 
 static uint32_t netconf_session_id = 1;
+static uint32_t netconf_max_sessions = NETCONF_MAX_SESSIONS_DEF;
+static uint32_t netconf_num_sessions = 0;
 
 /* Maintain a list of open sessions */
 static GList *open_sessions_list = NULL;
@@ -269,6 +278,7 @@ remove_netconf_session (struct netconf_session *session)
         if (nc_session && session->id == nc_session->id)
         {
             open_sessions_list = g_list_remove (open_sessions_list, nc_session);
+            netconf_num_sessions--;
             break;
         }
     }
@@ -1618,6 +1628,35 @@ _netconf_clear_session (const char *path, const char *value)
     return true;
 }
 
+static bool
+_netconf_max_sessions (const char *path, const char *value)
+{
+    uint32_t max_sessions;
+
+    if (!value || strlen (value) == 0)
+    {
+        max_sessions = NETCONF_MAX_SESSIONS_DEF;
+    }
+    else
+    {
+        max_sessions = g_ascii_strtoull (value, NULL, 10);
+        if (max_sessions < NETCONF_MAX_SESSIONS_MIN)
+        {
+            max_sessions = NETCONF_MAX_SESSIONS_MIN;
+        }
+        else if (max_sessions > NETCONF_MAX_SESSIONS_MAX)
+        {
+            max_sessions = NETCONF_MAX_SESSIONS_MAX;
+        }
+    }
+    if (netconf_max_sessions != max_sessions)
+    {
+        netconf_max_sessions = max_sessions;
+        apteryx_set_int (NETCONF_STATE, "max-sessions", netconf_max_sessions);
+    }
+    return true;
+}
+
 static struct netconf_session *
 create_session (int fd)
 {
@@ -1636,6 +1675,7 @@ create_session (int fd)
 
     /* Append to open sessions list */
     open_sessions_list = g_list_append (open_sessions_list, session);
+    netconf_num_sessions++;
     g_mutex_unlock (&session_lock);
 
     return session;
@@ -1759,7 +1799,7 @@ netconf_handle_session (int fd)
     socklen_t len = sizeof (struct ucred);
     nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
 
-    if (!session->running)
+    if (!session->running || netconf_num_sessions > netconf_max_sessions)
     {
         destroy_session (session);
         return NULL;
@@ -1935,6 +1975,8 @@ netconf_init (const char *path, const char *supported, const char *logging,
     /* Set up Apteryx refresh on session information */
     apteryx_refresh (NETCONF_STATE_SESSIONS_PATH "/*", _netconf_sessions_refresh);
     apteryx_watch (NETCONF_SESSION_STATUS, _netconf_clear_session);
+    apteryx_watch (NETCONF_CONFIG_MAX_SESSIONS, _netconf_max_sessions);
+    apteryx_set_int (NETCONF_STATE, "max-sessions", netconf_max_sessions);
 
     return true;
 }
