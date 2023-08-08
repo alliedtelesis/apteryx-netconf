@@ -6,6 +6,15 @@ from conftest import connect
 # EDIT-CONFIG
 
 
+def _error_check(err, expect_err):
+    assert err is not None
+    assert err.tag == expect_err["tag"]
+    assert err.type == expect_err["type"]
+    assert err.severity == "error"
+    if "message" in expect_err:
+        assert err.message == expect_err["message"]
+
+
 def _edit_config_test(payload, expect_err=None, post_xpath=None, inc_str=[], exc_str=[]):
     """
     Run an edit-config with the given payload, optionally checking for error, and
@@ -20,7 +29,7 @@ def _edit_config_test(payload, expect_err=None, post_xpath=None, inc_str=[], exc
     except RPCError as err:
         print(err)
         assert expect_err is not None
-        assert err.tag == expect_err
+        _error_check(err, expect_err)
     else:
         assert expect_err is None
         if post_xpath is not None:
@@ -116,7 +125,7 @@ def test_edit_config_delete_invalid_path():
   </test>
 </config>
 """
-    _edit_config_test(payload, expect_err="malformed-message")
+    _edit_config_test(payload, expect_err={"tag": "malformed-message", "type": "rpc"})
 
 
 def test_edit_config_delete_node():
@@ -190,7 +199,7 @@ def test_edit_config_delete_missing():
   </test>
 </config>
 """
-    _edit_config_test(payload, expect_err='data-missing')
+    _edit_config_test(payload, expect_err={"tag": "data-missing", "type": "application"})
 
 
 def test_edit_config_delete_list():
@@ -356,7 +365,7 @@ def test_edit_config_create_list_item_exists():
   </test>
 </config>
 """
-    _edit_config_test(payload, expect_err="data-exists")
+    _edit_config_test(payload, expect_err={"tag": "data-exists", "type": "application"})
 
 
 def test_edit_config_create_list_item_field():
@@ -390,7 +399,7 @@ def test_edit_config_create_list_item_field_exists():
   </test>
 </config>
 """
-    _edit_config_test(payload, expect_err="data-exists")
+    _edit_config_test(payload, expect_err={"tag": "data-exists", "type": "application"})
 
 
 # EDIT-CONFIG (operation=remove)
@@ -412,7 +421,7 @@ def test_edit_config_remove_invalid_path():
   </test>
 </config>
 """
-    _edit_config_test(payload, expect_err="malformed-message")
+    _edit_config_test(payload, expect_err={"tag": "malformed-message", "type": "rpc"})
 
 
 def test_edit_config_remove_missing_data():
@@ -430,7 +439,7 @@ def test_edit_config_remove_missing_data():
   </test>
 </config>
 """
-    _edit_config_test(payload, expect_err="malformed-message")
+    _edit_config_test(payload, expect_err={"tag": "malformed-message", "type": "rpc"})
 
 
 # Empty value for nodes that have a non-empty pattern or values
@@ -446,7 +455,7 @@ def test_edit_config_invalid_empty_merge():
   </test>
 </config>
 """
-    _edit_config_test(payload, expect_err="bad-attribute")
+    _edit_config_test(payload, expect_err={"tag": "invalid-value", "type": "protocol"})
 
 
 def test_edit_config_invalid_empty_replace():
@@ -460,7 +469,7 @@ def test_edit_config_invalid_empty_replace():
   </test>
 </config>
 """
-    _edit_config_test(payload, expect_err="bad-attribute")
+    _edit_config_test(payload, expect_err={"tag": "invalid-value", "type": "protocol"})
 
 
 def test_edit_config_empty_delete():

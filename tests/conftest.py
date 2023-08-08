@@ -15,6 +15,9 @@ APTERYX = 'LD_LIBRARY_PATH=.build/usr/lib .build/usr/bin/apteryx'
 # APTERYX_URL='tcp://192.168.6.2:9999:'
 APTERYX_URL = ''
 
+# DEBUG
+# manager.logging.basicConfig(filename='ncclient.log', level=manager.logging.DEBUG)
+
 # TEST HELPERS
 
 db_default = [
