@@ -216,7 +216,8 @@ _create_error_info_xml (nc_error_parms parms)
             xmlNewChild (xml_err_info, NULL, BAD_CAST "session-id", BAD_CAST session_id);
         }
     }
-    else if (parms.tag == NC_ERR_TAG_MISSING_ATTR || parms.tag == NC_ERR_TAG_BAD_ATTR || parms.tag == NC_ERR_TAG_UNKNOWN_ATTR)
+    else if (parms.tag == NC_ERR_TAG_MISSING_ATTR || parms.tag == NC_ERR_TAG_BAD_ATTR ||
+             parms.tag == NC_ERR_TAG_UNKNOWN_ATTR)
     {
         char *bad_attr = NULL;
         char *bad_elem = NULL;
@@ -228,7 +229,8 @@ _create_error_info_xml (nc_error_parms parms)
             xmlNewChild (xml_err_info, NULL, BAD_CAST "bad-element", BAD_CAST bad_elem);
         }
     }
-    else if (parms.tag == NC_ERR_TAG_MISSING_ELEM || parms.tag == NC_ERR_TAG_BAD_ELEM || parms.tag == NC_ERR_TAG_UNKNOWN_ELEM)
+    else if (parms.tag == NC_ERR_TAG_MISSING_ELEM || parms.tag == NC_ERR_TAG_BAD_ELEM ||
+             parms.tag == NC_ERR_TAG_UNKNOWN_ELEM)
     {
         char *bad_elem = NULL;
         bad_elem = g_hash_table_lookup (parms.info, "bad-element");
@@ -239,6 +241,15 @@ _create_error_info_xml (nc_error_parms parms)
     }
 
     return xml_err_info;
+}
+
+static void
+_free_error_parms (nc_error_parms error_parms)
+{
+    error_parms.tag = 0;
+    error_parms.type = 0;
+    g_string_free (error_parms.msg, TRUE);
+    g_hash_table_destroy (error_parms.info);
 }
 
 /* Close open sessions */
@@ -392,8 +403,10 @@ send_rpc_error (struct netconf_session *session, xmlNode * rpc, nc_error_parms e
     /* Generate reply */
     doc = create_rpc (BAD_CAST "rpc-reply", xmlGetProp (rpc, BAD_CAST "message-id"));
     child = xmlNewChild (xmlDocGetRootElement (doc), NULL, BAD_CAST "rpc-error", NULL);
-    xmlNewChild (child, NULL, BAD_CAST "error-tag", BAD_CAST rpc_error_tag_to_string (error_parms.tag));
-    xmlNewChild (child, NULL, BAD_CAST "error-type", BAD_CAST rpc_error_type_to_string (error_parms.type));
+    xmlNewChild (child, NULL, BAD_CAST "error-tag",
+                 BAD_CAST rpc_error_tag_to_string (error_parms.tag));
+    xmlNewChild (child, NULL, BAD_CAST "error-type",
+                 BAD_CAST rpc_error_type_to_string (error_parms.type));
     xmlNewChild (child, NULL, BAD_CAST "error-severity", BAD_CAST "error");
 
     if (!error_parms.msg || g_strcmp0 (error_parms.msg->str, "") == 0)
@@ -409,7 +422,6 @@ send_rpc_error (struct netconf_session *session, xmlNode * rpc, nc_error_parms e
     {
         error_info = _create_error_info_xml (error_parms);
         xmlAddChild (child, error_info);
-        g_hash_table_unref (error_parms.info);
     }
 
     xmlDocDumpMemoryEnc (doc, &xmlbuff, &len, "UTF-8");
@@ -447,18 +459,82 @@ send_rpc_error (struct netconf_session *session, xmlNode * rpc, nc_error_parms e
 }
 
 static bool
-_send_rpc_error_lock_denied(struct netconf_session *session, xmlNode * rpc, GString *error_msg)
+_send_rpc_error_session (struct netconf_session *session, xmlNode *rpc, NC_ERR_TAG err_tag,
+                         NC_ERR_TYPE err_type, GString *error_msg)
 {
     nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
-
-    error_parms.tag = NC_ERR_TAG_LOCK_DENIED;
-    error_parms.type = NC_ERR_TYPE_PROTOCOL;
+    bool ret = false;
+    error_parms.tag = err_tag;
+    error_parms.type = err_type;
     GString *session_id_str = g_string_new (NULL);
     g_string_printf (session_id_str, "%u", running_ds_lock.nc_sess.id);
     g_hash_table_insert (error_parms.info, "session-id", session_id_str->str);
-    g_string_printf (error_parms.msg, "%s", error_msg->str);
-    g_string_free (error_msg, TRUE);
-    return send_rpc_error (session, rpc, error_parms);
+    if (error_msg)
+    {
+        g_string_printf (error_parms.msg, "%s", error_msg->str);
+        ERROR ("%s\n", error_msg->str);
+    }
+    ret = send_rpc_error (session, rpc, error_parms);
+    g_string_free (session_id_str, FALSE);
+    _free_error_parms (error_parms);
+    return ret;
+}
+
+static bool
+_send_rpc_error_element (struct netconf_session *session, xmlNode *rpc, NC_ERR_TAG err_tag,
+                         NC_ERR_TYPE err_type, char *bad_elem, GString *error_msg)
+{
+    nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
+    bool ret = false;
+    error_parms.tag = err_tag;
+    error_parms.type = err_type;
+    if (error_msg)
+    {
+        g_string_printf (error_parms.msg, "%s", error_msg->str);
+        ERROR ("%s\n", error_msg->str);
+    }
+    g_hash_table_insert (error_parms.info, "bad-element", bad_elem);
+    ret = send_rpc_error (session, rpc, error_parms);
+    _free_error_parms (error_parms);
+    return ret;
+}
+
+static bool
+_send_rpc_error_attr (struct netconf_session *session, xmlNode *rpc, NC_ERR_TAG err_tag,
+                      NC_ERR_TYPE err_type, char *bad_elem, char *bad_attr, GString *error_msg)
+{
+    nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
+    bool ret = false;
+    error_parms.tag = err_tag;
+    error_parms.type = err_type;
+    if (error_msg)
+    {
+        g_string_printf (error_parms.msg, "%s", error_msg->str);
+        ERROR ("%s\n", error_msg->str);
+    }
+    g_hash_table_insert (error_parms.info, "bad-element", bad_elem);
+    g_hash_table_insert (error_parms.info, "bad-attribute", bad_attr);
+    ret = send_rpc_error (session, rpc, error_parms);
+    _free_error_parms (error_parms);
+    return ret;
+}
+
+static bool
+_send_rpc_error_no_info (struct netconf_session *session, xmlNode *rpc, NC_ERR_TAG err_tag,
+                         NC_ERR_TYPE err_type, GString *error_msg)
+{
+    nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
+    bool ret = false;
+    error_parms.tag = err_tag;
+    error_parms.type = err_type;
+    if (error_msg)
+    {
+        g_string_printf (error_parms.msg, "%s", error_msg->str);
+        ERROR ("%s\n", error_msg->str);
+    }
+    ret = send_rpc_error (session, rpc, error_parms);
+    _free_error_parms (error_parms);
+    return ret;
 }
 
 static bool
@@ -913,8 +989,8 @@ get_query_schema (struct netconf_session *session, GNode *query, sch_node *qsche
 }
 
 static int
-get_process_action (struct netconf_session *session, xmlNode *node, int schflags,
-                    GList **xml_list, nc_error_parms *error_parms)
+get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node,
+                    int schflags, GList **xml_list, bool *ret)
 {
     char *attr;
     xmlNode *tnode;
@@ -932,10 +1008,13 @@ get_process_action (struct netconf_session *session, xmlNode *node, int schflags
         if (!xmlFirstElementChild (node) ||
             g_strcmp0 ((char *) xmlFirstElementChild (node)->name, "running") != 0)
         {
-            error_parms->tag = NC_ERR_TAG_OPR_NOT_SUPPORTED;
-            error_parms->type = NC_ERR_TYPE_PROTOCOL;
-            g_string_printf (error_parms->msg, "Datastore \"%s\" not supported", (char *) xmlFirstElementChild (node)->name);
-            VERBOSE ("%s\n", error_parms->msg->str);
+            GString *error_msg = g_string_new (NULL);
+            g_string_printf (error_msg,
+                             "Datastore \"%s\" not supported",
+                             (char *) xmlFirstElementChild (node)->name);
+            *ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                            NC_ERR_TYPE_PROTOCOL, error_msg);
+            g_string_free (error_msg, TRUE);
             return -1;
         }
     }
@@ -955,12 +1034,13 @@ get_process_action (struct netconf_session *session, xmlNode *node, int schflags
             attr = (char *) xmlGetProp (node, BAD_CAST "select");
             if (!attr)
             {
-                error_parms->tag = NC_ERR_TAG_MISSING_ATTR;
-                error_parms->type = NC_ERR_TYPE_PROTOCOL;
-                g_string_printf (error_parms->msg, "XPATH filter missing select attribute");
-                VERBOSE ("%s\n", error_parms->msg->str);
-                g_hash_table_insert (error_parms->info, "bad-element", "xpath");
-                g_hash_table_insert (error_parms->info, "bad-attribute", "select");
+                GString *error_msg = g_string_new (NULL);
+                char *bad_elem = "xpath";
+                char *bad_attr = "select";
+                g_string_printf (error_msg, "XPATH filter missing select attribute");
+                *ret = _send_rpc_error_attr (session, rpc, NC_ERR_TAG_MISSING_ATTR,
+                                             NC_ERR_TYPE_PROTOCOL, bad_elem, bad_attr, error_msg);
+                g_string_free (error_msg, TRUE);
                 return -1;
             }
             VERBOSE ("FILTER: XPATH: %s\n", attr);
@@ -975,24 +1055,27 @@ get_process_action (struct netconf_session *session, xmlNode *node, int schflags
                 query = sch_path_to_gnode (g_schema, NULL, path, schflags, &qschema);
                 if (!query)
                 {
-
-                    error_parms->tag = NC_ERR_TAG_MALFORMED_MSG;
-                    error_parms->type = NC_ERR_TYPE_RPC;
-                    g_string_printf (error_parms->msg, "XPATH: malformed filter");
-                    VERBOSE ("%s\n", error_parms->msg->str);
+                    GString *error_msg = g_string_new (NULL);
+                    g_string_printf (error_msg, "XPATH: malformed filter");
+                    *ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_MALFORMED_MSG,
+                                                    NC_ERR_TYPE_RPC, error_msg);
+                    g_string_free (error_msg, TRUE);
                     free (attr);
                     g_strfreev(split);
                     return -1;
+
                 }
 
                 if (qschema)
                 {
                     if (sch_is_leaf (qschema) && !sch_is_readable (qschema))
                     {
-                        error_parms->tag = NC_ERR_TAG_OPR_NOT_SUPPORTED;
-                        error_parms->type = NC_ERR_TYPE_APP;
-                        g_string_printf (error_parms->msg, "NETCONF: Path \"%s\" not readable", attr);
-                        VERBOSE ("%s\n", error_parms->msg->str);
+                        GString *error_msg = g_string_new (NULL);
+                        g_string_printf (error_msg,
+                                         "NETCONF: Path \"%s\" not readable", attr);
+                        *ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                                        NC_ERR_TYPE_APP, error_msg);
+                        g_string_free (error_msg, TRUE);
                         free (attr);
                         g_strfreev(split);
                         return -1;
@@ -1023,10 +1106,11 @@ get_process_action (struct netconf_session *session, xmlNode *node, int schflags
                 sch_parm_free (parms);
                 if (!query)
                 {
-                    error_parms->tag = NC_ERR_TAG_MALFORMED_MSG;
-                    error_parms->type = NC_ERR_TYPE_RPC;
-                    g_string_printf (error_parms->msg, "SUBTREE: malformed query");
-                    VERBOSE ("%s\n", error_parms->msg->str);
+                    GString *error_msg = g_string_new (NULL);
+                    g_string_printf (error_msg, "SUBTREE: malformed query");
+                    *ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_MALFORMED_MSG,
+                                                    NC_ERR_TYPE_RPC, error_msg);
+                    g_string_free (error_msg, TRUE);
                     free (attr);
                     return -1;
                 }
@@ -1035,10 +1119,11 @@ get_process_action (struct netconf_session *session, xmlNode *node, int schflags
                 {
                     if (sch_is_leaf (qschema) && !sch_is_readable (qschema))
                     {
-                        error_parms->tag = NC_ERR_TAG_OPR_NOT_SUPPORTED;
-                        error_parms->type = NC_ERR_TYPE_APP;
-                        g_string_printf (error_parms->msg, "NETCONF: Path \"%s\" not readable", attr);
-                        VERBOSE ("%s\n", error_parms->msg->str);
+                        GString *error_msg = g_string_new (NULL);
+                        g_string_printf (error_msg, "NETCONF: Path \"%s\" not readable", attr);
+                        *ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                                        NC_ERR_TYPE_APP, error_msg);
+                        g_string_free (error_msg, TRUE);
                         return -1;
                     }
                     get_query_schema (session, query, qschema, schflags, is_filter, xml_list);
@@ -1047,12 +1132,14 @@ get_process_action (struct netconf_session *session, xmlNode *node, int schflags
         }
         else
         {
-            error_parms->tag = NC_ERR_TAG_OPR_NOT_SUPPORTED;
-            error_parms->type = NC_ERR_TYPE_APP;
-            g_string_printf (error_parms->msg, "FILTER: unsupported/missing type (%s)", attr);
-            VERBOSE ("%s\n", error_parms->msg->str);
+            GString *error_msg = g_string_new (NULL);
+            g_string_printf (error_msg, "FILTER: unsupported/missing type (%s)", attr);
+            *ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                            NC_ERR_TYPE_APP, error_msg);
+            g_string_free (error_msg, TRUE);
             free (attr);
             return -1;
+
         }
         free (attr);
     }
@@ -1068,7 +1155,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
     GList *xml_list = NULL;
     GList *list;
     int schflags = 0;
-    nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
+    bool ret = false;
 
     if (apteryx_netconf_verbose)
         schflags |= SCH_F_DEBUG;
@@ -1082,14 +1169,11 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
     if (running_ds_lock.locked == TRUE && (session->id != running_ds_lock.nc_sess.id))
     {
         /* A lock is already held by another NETCONF session, return in-use */
-        error_parms.tag = NC_ERR_TAG_IN_USE;
-        error_parms.type = NC_ERR_TYPE_APP;
-        g_string_printf (error_parms.msg, "Lock is already held");
-        ERROR ("%s\n", error_parms.msg->str);
-        GString *session_id_str = g_string_new (NULL);
-        g_string_printf (session_id_str, "%u", running_ds_lock.nc_sess.id);
-        g_hash_table_insert (error_parms.info, "session-id", session_id_str->str);
-        return send_rpc_error (session, rpc, error_parms);
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg, "Lock is already held");
+        ret = _send_rpc_error_session (session, rpc, NC_ERR_TAG_IN_USE, NC_ERR_TYPE_APP, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
 
     /* Parse options - first look for with-defaults option as this changes the way query lookup works */
@@ -1108,12 +1192,15 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
             }
             else if (g_strcmp0 (defaults_type, "explicit") != 0)
             {
-                error_parms.tag = NC_ERR_TAG_OPR_NOT_SUPPORTED;
-                error_parms.type = NC_ERR_TYPE_PROTOCOL;
-                g_string_printf (error_parms.msg, "WITH-DEFAULTS: No support for with-defaults query type \"%s\"", defaults_type);
-                ERROR ("%s\n", error_parms.msg->str);
+                GString *error_msg = g_string_new (NULL);
+                g_string_printf (error_msg,
+                                 "WITH-DEFAULTS: No support for with-defaults query type \"%s\"",
+                                 defaults_type);
+                ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                               NC_ERR_TYPE_PROTOCOL, error_msg);
+                g_string_free (error_msg, TRUE);
                 free (defaults_type);
-                return send_rpc_error (session, rpc, error_parms);
+                return ret;
             }
             free (defaults_type);
             break;
@@ -1126,7 +1213,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
         if (g_strcmp0 ((char *) node->name, "with-defaults") == 0)
             continue;
 
-        if (get_process_action (session, node, schflags, &xml_list, &error_parms) < 0)
+        if (get_process_action (session, rpc, node, schflags, &xml_list, &ret) < 0)
         {
             /* Cleanup any requests added to the xml_list before hitting an error */
             for (list = g_list_first (xml_list); list; list = g_list_next (list))
@@ -1135,7 +1222,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
             }
             g_list_free (xml_list);
 
-            return send_rpc_error (session, rpc, error_parms);
+            return ret;
         }
     }
 
@@ -1170,20 +1257,18 @@ xmlFindNodeByName (xmlNode * root, const xmlChar * name)
  * get expected result, otherwise leave it alone (so we can accumulate errors).
  */
 static void
-_check_exist (const char *check_xpath, nc_error_parms *error_parms, bool expected)
+_check_exist (const char *check_xpath, NC_ERR_TAG *err_tag, bool expected)
 {
     GNode *check_result;
 
     check_result = apteryx_get_tree (check_xpath);
     if (check_result && !expected)
     {
-        error_parms->tag =  NC_ERR_TAG_DATA_EXISTS;
-        error_parms->type = NC_ERR_TYPE_APP;
+        *err_tag =  NC_ERR_TAG_DATA_EXISTS;
     }
     else if (!check_result && expected)
     {
-        error_parms->tag =  NC_ERR_TAG_DATA_MISSING;
-        error_parms->type = NC_ERR_TYPE_APP;
+        *err_tag =  NC_ERR_TAG_DATA_MISSING;
     }
     apteryx_free_tree (check_result);
 }
@@ -1198,7 +1283,7 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
     sch_node *qschema = NULL;
     int schflags = 0;
     GList *iter;
-    nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
+    bool ret = false;
 
     if (apteryx_netconf_verbose)
         schflags |= SCH_F_DEBUG;
@@ -1208,11 +1293,13 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
     if (!node || !xmlFirstElementChild (node) ||
         xmlStrcmp (xmlFirstElementChild (node)->name, BAD_CAST "running"))
     {
-        error_parms.tag = NC_ERR_TAG_OPR_NOT_SUPPORTED;
-        error_parms.type = NC_ERR_TYPE_PROTOCOL;
-        g_string_printf (error_parms.msg, "Datastore \"%s\" not supported", (char *) xmlFirstElementChild (node)->name);
-        VERBOSE ("%s\n", error_parms.msg->str);
-        return send_rpc_error (session, rpc, error_parms);
+          GString *error_msg = g_string_new (NULL);
+          g_string_printf (error_msg, "Datastore \"%s\" not supported",
+                          (char *) xmlFirstElementChild (node)->name);
+          ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                         NC_ERR_TYPE_PROTOCOL, error_msg);
+          g_string_free (error_msg, TRUE);
+          return ret;
     }
 
     //TODO Check default-operation
@@ -1223,26 +1310,24 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
     if (running_ds_lock.locked == TRUE && (session->id != running_ds_lock.nc_sess.id))
     {
         /* A lock is already held by another NETCONF session, return in-use */
-        error_parms.tag = NC_ERR_TAG_IN_USE;
-        error_parms.type = NC_ERR_TYPE_APP;
-        g_string_printf (error_parms.msg, "Lock is already held");
-        ERROR ("%s\n", error_parms.msg->str);
-        GString *session_id_str = g_string_new (NULL);
-        g_string_printf (session_id_str, "%u", running_ds_lock.nc_sess.id);
-        g_hash_table_insert (error_parms.info, "session-id", session_id_str->str);
-        return send_rpc_error (session, rpc, error_parms);
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg, "Lock is already held");
+        ret = _send_rpc_error_session (session, rpc, NC_ERR_TAG_IN_USE, NC_ERR_TYPE_APP, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
 
     /* Find the config */
     node = xmlFindNodeByName (action, BAD_CAST "config");
     if (!node)
     {
-        error_parms.tag = NC_ERR_TAG_MISSING_ELEM;
-        error_parms.type = NC_ERR_TYPE_PROTOCOL;
-        g_string_printf (error_parms.msg, "Missing \'%s\' element", "config");
-        ERROR ("%s\n", error_parms.msg->str);
-        g_hash_table_insert (error_parms.info, "bad-element", "config");
-        return send_rpc_error (session, rpc, error_parms);
+        char *bad_elem = "config";
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg,  "Missing \'%s\' element", bad_elem);
+        ret = _send_rpc_error_element (session, rpc, NC_ERR_TAG_MISSING_ELEM,
+                                       NC_ERR_TYPE_PROTOCOL, bad_elem, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
 
     /* Convert to gnode */
@@ -1250,31 +1335,34 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
         sch_xml_to_gnode (g_schema, NULL, xmlFirstElementChild (node), schflags, "merge",
                           true, &qschema);
     tree = sch_parm_tree (parms);
-    error_parms = sch_parm_error (parms);
+    nc_error_parms error_parms = sch_parm_error (parms);
 
     if (error_parms.tag != 0)
     {
         VERBOSE ("error parsing XML\n");
+        ret = send_rpc_error (session, rpc, error_parms);
         sch_parm_free (parms);
         apteryx_free_tree (tree);
-        return send_rpc_error (session, rpc, error_parms);
+        return ret;
     }
 
     /* Check delete and create paths */
+    NC_ERR_TAG err_tag = NC_ERR_TAG_UNKNOWN;
     for (iter = sch_parm_deletes (parms); iter; iter = g_list_next (iter))
     {
-        _check_exist ((char *) iter->data, &error_parms, true);
+        _check_exist ((char *) iter->data, &err_tag, true);
     }
     for (iter = sch_parm_creates (parms); iter; iter = g_list_next (iter))
     {
-        _check_exist ((char *) iter->data, &error_parms, false);
+        _check_exist ((char *) iter->data, &err_tag, false);
     }
-    if (error_parms.tag != 0)
+    if (err_tag != NC_ERR_TAG_UNKNOWN)
     {
         VERBOSE ("error in delete or create paths\n");
+        ret = _send_rpc_error_no_info (session, rpc, err_tag, NC_ERR_TYPE_APP, NULL);
         sch_parm_free (parms);
         apteryx_free_tree (tree);
-        return send_rpc_error (session, rpc, error_parms);
+        return ret;
     }
 
     /* Delete delete, remove and replace paths */
@@ -1299,10 +1387,9 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
     DEBUG ("NETCONF: SET %s\n", tree ? APTERYX_NAME (tree) : "NULL");
     if (tree && !apteryx_set_tree (tree))
     {
+        ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_FAILED, NC_ERR_TYPE_APP, NULL);
         apteryx_free_tree (tree);
-        error_parms.tag = NC_ERR_TAG_OPR_FAILED;
-        error_parms.type = NC_ERR_TYPE_APP;
-        return send_rpc_error(session ,rpc, error_parms);
+        return ret;
     }
     if (netconf_logging_test_flag (LOG_EDIT_CONFIG))
         NOTICE ("EDIT-CONFIG: user:%s session-id:%d path:%s\n",
@@ -1327,19 +1414,20 @@ handle_lock (struct netconf_session *session, xmlNode * rpc)
 {
     xmlNode *action = xmlFirstElementChild (rpc);
     xmlNode *node;
-    nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
-    GString *error_msg = g_string_new (NULL);
+    bool ret = false;
 
     /* Check the target */
     node = xmlFindNodeByName (action, BAD_CAST "target");
     if (!node || !xmlFirstElementChild (node) ||
         xmlStrcmp (xmlFirstElementChild (node)->name, BAD_CAST "running"))
     {
-        error_parms.tag = NC_ERR_TAG_OPR_NOT_SUPPORTED;
-        error_parms.type = NC_ERR_TYPE_PROTOCOL;
-        g_string_printf (error_parms.msg, "Datastore \"%s\" not supported", (char *) xmlFirstElementChild (node)->name);
-        VERBOSE ("%s\n", error_parms.msg->str);
-        return send_rpc_error (session, rpc, error_parms);
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg, "Datastore \"%s\" not supported",
+                         (char *) xmlFirstElementChild (node)->name);
+        ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                       NC_ERR_TYPE_PROTOCOL, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
 
     /* Attempt to acquire lock */
@@ -1351,9 +1439,13 @@ handle_lock (struct netconf_session *session, xmlNode * rpc)
     else
     {
         /* Return lock-denied */
-        g_string_printf (error_msg, "Lock is already held by session id %d", running_ds_lock.nc_sess.id);
-        ERROR ("%s\n", error_msg->str);
-        return _send_rpc_error_lock_denied (session, rpc, error_msg);
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg, "Lock is already held by session id %d",
+                         running_ds_lock.nc_sess.id);
+        ret =  _send_rpc_error_session (session, rpc, NC_ERR_TAG_LOCK_DENIED,
+                                        NC_ERR_TYPE_PROTOCOL, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
     if (netconf_logging_test_flag (LOG_LOCK))
         NOTICE ("LOCK: user:%s session-id:%d\n", session->username, session->id);
@@ -1375,36 +1467,42 @@ handle_unlock (struct netconf_session *session, xmlNode * rpc)
 {
     xmlNode *action = xmlFirstElementChild (rpc);
     xmlNode *node;
-    nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
-    GString *error_msg = g_string_new (NULL);
+    bool ret = false;
 
     /* Check the target */
     node = xmlFindNodeByName (action, BAD_CAST "target");
     if (!node || !xmlFirstElementChild (node) ||
         xmlStrcmp (xmlFirstElementChild (node)->name, BAD_CAST "running"))
     {
-        error_parms.tag = NC_ERR_TAG_OPR_NOT_SUPPORTED;
-        error_parms.type = NC_ERR_TYPE_PROTOCOL;
-        g_string_printf (error_parms.msg, "Datastore \"%s\" not supported", (char *) xmlFirstElementChild (node)->name);
-        VERBOSE ("%s\n", error_parms.msg->str);
-        return send_rpc_error (session, rpc, error_parms);
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg, "Datastore \"%s\" not supported",
+                        (char *) xmlFirstElementChild (node)->name);
+        ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                       NC_ERR_TYPE_PROTOCOL, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
 
     /* Check unlock operation validity */
     if (running_ds_lock.locked != TRUE)
     {
-        error_parms.tag = NC_ERR_TAG_OPR_FAILED;
-        error_parms.type = NC_ERR_TYPE_PROTOCOL;
-        g_string_printf (error_parms.msg, "Unlock failed, no lock configured on the \"%s\" datastore", (char *) xmlFirstElementChild (node)->name);
-        ERROR ("%s\n", error_parms.msg->str);
-        return send_rpc_error (session, rpc, error_parms);
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg, "Unlock failed, no lock configured on the \"%s\" datastore",
+                         (char *) xmlFirstElementChild (node)->name);
+        ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_FAILED,
+                                       NC_ERR_TYPE_PROTOCOL, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
     else if ((running_ds_lock.locked == TRUE) && (session->id != running_ds_lock.nc_sess.id))
     {
         /* Lock held by another session */
+        GString *error_msg = g_string_new (NULL);
         g_string_printf (error_msg, "Unlock failed, session %u does not own the lock", session->id);
-        ERROR ("%s\n", error_msg->str);
-        return _send_rpc_error_lock_denied (session, rpc, error_msg);
+        ret =  _send_rpc_error_session (session, rpc, NC_ERR_TAG_LOCK_DENIED,
+                                        NC_ERR_TYPE_PROTOCOL, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
 
     /* Unlock running datastore */
@@ -1425,18 +1523,19 @@ handle_kill_session (struct netconf_session *session, xmlNode * rpc)
     uint32_t kill_session_id = 0;
     struct netconf_session *kill_session = NULL;
     xmlChar* content = NULL;
-    nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
+    bool ret = false;
 
     /* Validate request */
     node = xmlFindNodeByName (action, BAD_CAST "session-id");
     if (!node)
     {
-        error_parms.tag = NC_ERR_TAG_MISSING_ELEM;
-        error_parms.type = NC_ERR_TYPE_PROTOCOL;
-        g_hash_table_insert (error_parms.info, "bad-element", "session-id");
-        g_string_printf (error_parms.msg, "Missing \'%s\' element", "session-id");
-        ERROR ("%s\n", error_parms.msg->str);
-        return send_rpc_error (session, rpc, error_parms);
+        char *bad_elem = "session-id";
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg,  "Missing \'%s\' element", bad_elem);
+        ret = _send_rpc_error_element (session, rpc, NC_ERR_TAG_MISSING_ELEM,
+                                       NC_ERR_TYPE_PROTOCOL, bad_elem, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
 
     /* Return an "invalid-value" error if the request is made for an incorrect session-id */
@@ -1446,30 +1545,33 @@ handle_kill_session (struct netconf_session *session, xmlNode * rpc)
 
     if (kill_session_id == 0)
     {
-        error_parms.tag = NC_ERR_TAG_INVALID_VAL;
-        error_parms.type = NC_ERR_TYPE_PROTOCOL;
-        g_string_printf (error_parms.msg, "Invalid session ID - 0");
-        ERROR ("%s\n", error_parms.msg->str);
-        return send_rpc_error (session, rpc, error_parms);
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg,"Invalid session ID - 0");
+        ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_INVALID_VAL,
+                                       NC_ERR_TYPE_PROTOCOL, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
     else if (session->id == kill_session_id)
     {
-        error_parms.tag = NC_ERR_TAG_INVALID_VAL;
-        error_parms.type = NC_ERR_TYPE_PROTOCOL;
-        g_string_printf (error_parms.msg, "Attempt to kill own session is forbidden");
-        ERROR ("%s\n", error_parms.msg->str);
-        return send_rpc_error (session, rpc, error_parms);
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg,"Attempt to kill own session is forbidden");
+        ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_INVALID_VAL,
+                                       NC_ERR_TYPE_PROTOCOL, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
 
     kill_session = find_netconf_session_by_id (kill_session_id);
 
     if (!kill_session)
     {
-        error_parms.tag = NC_ERR_TAG_INVALID_VAL;
-        error_parms.type = NC_ERR_TYPE_PROTOCOL;
-        g_string_printf (error_parms.msg, "Session ID - %u not found!", kill_session_id);
-        ERROR ("%s\n", error_parms.msg->str);
-        return send_rpc_error (session, rpc, error_parms);
+        GString *error_msg = g_string_new (NULL);
+        g_string_printf (error_msg, "Session ID - %u not found!", kill_session_id);
+        ret = _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_INVALID_VAL,
+                                       NC_ERR_TYPE_PROTOCOL, error_msg);
+        g_string_free (error_msg, TRUE);
+        return ret;
     }
 
     /* Shutdown session fd */
@@ -1797,7 +1899,6 @@ netconf_handle_session (int fd)
     struct netconf_session *session = create_session (fd);
     struct ucred ucred;
     socklen_t len = sizeof (struct ucred);
-    nc_error_parms error_parms = NC_ERROR_PARMS_INIT;
 
     if (!session->running || netconf_num_sessions > netconf_max_sessions)
     {
@@ -1877,14 +1978,14 @@ netconf_handle_session (int fd)
         /* Check whether the <rpc> element has the mandatory attribute - "message-id "*/
         if (!xmlHasProp (rpc, BAD_CAST "message-id"))
         {
-            error_parms.tag = NC_ERR_TAG_MISSING_ATTR;
-            error_parms.type = NC_ERR_TYPE_PROTOCOL;
-            g_string_printf (error_parms.msg, "Mandatory attribute \'message-id\' is missing in \'rpc\' tag");
-            ERROR ("%s\n", error_parms.msg->str);
-            send_rpc_error (session, rpc, error_parms);
-            g_hash_table_insert (error_parms.info, "bad-element", BAD_CAST "rpc");
-            g_hash_table_insert (error_parms.info, "bad-attribute", BAD_CAST "message-id");
-            send_rpc_error (session, rpc, error_parms);
+            GString *error_msg = g_string_new (NULL);
+            char *bad_elem = "rpc";
+            char *bad_attr = "message-id";
+            g_string_printf (error_msg, "Mandatory attribute \'%s\' is missing in \'%s\' tag",
+                             bad_attr, bad_elem);
+            _send_rpc_error_attr (session, rpc, NC_ERR_TAG_MISSING_ATTR, NC_ERR_TYPE_PROTOCOL,
+                                  bad_elem, bad_attr, error_msg);
+            g_string_free (error_msg, TRUE);
             xmlFreeDoc (doc);
             g_free (message);
             break;
@@ -1930,11 +2031,11 @@ netconf_handle_session (int fd)
         }
         else
         {
-            error_parms.tag = NC_ERR_TAG_OPR_NOT_SUPPORTED;
-            error_parms.type = NC_ERR_TYPE_PROTOCOL;
-            g_string_printf (error_parms.msg, "Unknown RPC (%s)", child->name);
-            ERROR ("%s\n", error_parms.msg->str);
-            send_rpc_error(session, rpc, error_parms);
+            GString *error_msg = g_string_new (NULL);
+            g_string_printf (error_msg, "Unknown RPC (%s)", child->name);
+            _send_rpc_error_no_info (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                     NC_ERR_TYPE_PROTOCOL, error_msg);
+            g_string_free (error_msg, TRUE);
             xmlFreeDoc (doc);
             g_free (message);
             break;
