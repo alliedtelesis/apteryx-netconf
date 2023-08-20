@@ -1918,6 +1918,17 @@ netconf_handle_session (int fd)
             break;
         }
 
+        /* Check whether the <rpc> element has the mandatory attribute - "message-id "*/
+        if (!xmlHasProp (rpc, BAD_CAST "message-id"))
+        {
+            send_rpc_error_full (session, rpc, NC_ERR_TAG_MISSING_ATTR, NC_ERR_TYPE_PROTOCOL,
+                                 "RPC missing message-id attribute",
+                                 "rpc", "message-id", false);
+            xmlFreeDoc (doc);
+            g_free (message);
+            break;
+        }
+
         if (g_strcmp0 ((char *) child->name, "close-session") == 0)
         {
             VERBOSE ("Closing session\n");

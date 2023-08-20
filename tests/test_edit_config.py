@@ -71,8 +71,8 @@ def test_edit_config_bad_target():
   </test>
 </config>
 """
-    xml = _edit_config_test(payload, post_xpath='/test/settings/priority', targ="candidate",
-                            expect_err={"tag": "operation-not-supported", "type": "protocol"})
+    _edit_config_test(payload, post_xpath='/test/settings/priority', targ="candidate",
+                      expect_err={"tag": "operation-not-supported", "type": "protocol"})
 
 
 def test_edit_config_multi():
