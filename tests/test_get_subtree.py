@@ -242,6 +242,10 @@ def test_get_subtree_list_container():
         <name>parrot</name>
         <type>big</type>
         <colour>blue</colour>
+        <toys>
+          <toy>puzzles</toy>
+          <toy>rings</toy>
+        </toys>
       </animal>
     </animals>
   </test>
@@ -285,6 +289,10 @@ def test_get_subtree_list_element():
         <name>parrot</name>
         <type>big</type>
         <colour>blue</colour>
+        <toys>
+          <toy>puzzles</toy>
+          <toy>rings</toy>
+        </toys>
       </animal>
     </animals>
   </test>

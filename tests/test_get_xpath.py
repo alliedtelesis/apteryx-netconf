@@ -163,6 +163,10 @@ def test_get_xpath_list_trunk():
         <name>parrot</name>
         <type>big</type>
         <colour>blue</colour>
+        <toys>
+          <toy>puzzles</toy>
+          <toy>rings</toy>
+        </toys>
       </animal>
     </animals>
   </test>
