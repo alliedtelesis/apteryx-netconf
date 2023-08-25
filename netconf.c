@@ -25,6 +25,7 @@
 #include <apteryx-xml.h>
 
 #define DEFAULT_LANG "en"
+#define RECV_TIMEOUT_SEC 60
 
 static sch_instance *g_schema = NULL;
 
@@ -1887,7 +1888,7 @@ receive_message (struct netconf_session *session, int *rlen)
             message = g_malloc (chunk_len);
         else
             message = g_realloc (message, len + chunk_len);
-        if (recv (session->fd, message + len, chunk_len, 0) != chunk_len)
+        if (recv (session->fd, message + len, chunk_len, MSG_WAITALL) != chunk_len)
         {
             ERROR ("RX Failed to read %d bytes of chunk\n", chunk_len);
             g_free (message);
@@ -1916,6 +1917,12 @@ netconf_handle_session (int fd)
         destroy_session (session);
         return NULL;
     }
+
+    /* Set socket recv timeout */
+    struct timeval timeout;
+    timeout.tv_sec = RECV_TIMEOUT_SEC;
+    timeout.tv_usec = 0;
+    int rc = setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof (timeout));
 
     /* Get user information from the calling process */
     if (getsockopt (fd, SOL_SOCKET, SO_PEERCRED, &ucred, &len) >= 0)
