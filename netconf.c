@@ -53,6 +53,7 @@ static struct _running_ds_lock_t
 #define NETCONF_HELLO_END_LEN 12
 #define HELLO_RX_SIZE 1024
 #define MAX_HELLO_RX_SIZE 16384
+#define MAX_REQUEST_MESSAGE_SIZE 32768
 
 #define NETCONF_STATE_SESSIONS_PATH "/netconf-state/sessions/session"
 #define NETCONF_STATE_STATISTICS_PATH "/netconf-state/statistics"
@@ -411,7 +412,11 @@ _send_rpc_error (struct netconf_session *session, xmlNode * rpc, nc_error_parms 
     bool ret = true;
 
     /* Generate reply */
-    doc = create_rpc (BAD_CAST "rpc-reply", xmlGetProp (rpc, BAD_CAST "message-id"));
+    if (rpc)
+        doc = create_rpc (BAD_CAST "rpc-reply", xmlGetProp (rpc, BAD_CAST "message-id"));
+    else
+        doc = create_rpc (BAD_CAST "rpc-reply", NULL);
+
     child = xmlNewChild (xmlDocGetRootElement (doc), NULL, BAD_CAST "rpc-error", NULL);
     xmlNewChild (child, NULL, BAD_CAST "error-tag",
                  BAD_CAST rpc_error_tag_to_string (error_parms.tag));
@@ -1943,6 +1948,18 @@ receive_message (struct netconf_session *session, int *rlen)
         if (!chunk_len)
         {
             /* End of message */
+            break;
+        }
+        else if (chunk_len > MAX_REQUEST_MESSAGE_SIZE)
+        {
+            gchar *error_msg = g_strdup ("NETCONF: The request is too large for the implementation to handle.");
+            VERBOSE ("%s\n", error_msg);
+            send_rpc_error_full (session, NULL, NC_ERR_TAG_TOO_BIG, NC_ERR_TYPE_APP, error_msg,
+                                 NULL, NULL, true);
+            g_free (error_msg);
+            g_free (message);
+            message = NULL;
+            len = 0;
             break;
         }
 
