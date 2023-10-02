@@ -877,7 +877,6 @@ get_query_to_xml (struct netconf_session *session, GNode *query, sch_node *rsche
     {
         if (tree)
         {
-            rnode = get_response_node (tree, rdepth);
             sch_traverse_tree (g_schema, rschema, rnode, schflags);
         }
         else if (!tree)
