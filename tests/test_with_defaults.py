@@ -220,6 +220,16 @@ def test_with_defaults_report_all_subtree():
     _get_test_with_defaults_and_filter(select, with_defaults, expected)
 
 
+# Test case where a query fails returns no result and the query itself is used to fill in defaults
+def test_with_defaults_report_all_subtree_no_match():
+    with_defaults = 'report-all'
+    select = '<interfaces><interface><name>eth4</name></interface></interfaces>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    _get_test_with_defaults_and_filter(select, with_defaults, expected)
+
+
 def test_with_defaults_trim_subtree():
     with_defaults = 'trim'
     select = '<interfaces></interfaces>'

@@ -853,7 +853,8 @@ get_full_tree ()
 }
 
 static void
-get_query_to_xml (struct netconf_session *session, GNode *query, int rdepth, int schflags, GList **xml_list)
+get_query_to_xml (struct netconf_session *session, GNode *query, int rdepth, int schflags,
+                  bool is_subtree, GList **xml_list)
 {
     GNode *tree;
     xmlNode *xml = NULL;
@@ -868,7 +869,16 @@ get_query_to_xml (struct netconf_session *session, GNode *query, int rdepth, int
                 query ? APTERYX_NAME (query) : "/");
     }
 
-    tree = query ? apteryx_query (query) : get_full_tree ();
+    if (query)
+    {
+        if (is_subtree)
+            tree = apteryx_query_full (query);
+        else
+            tree = apteryx_query (query);
+    }
+    else
+        tree = get_full_tree ();
+
     if (schflags & SCH_F_ADD_DEFAULTS)
     {
         if (tree)
@@ -895,7 +905,7 @@ get_query_to_xml (struct netconf_session *session, GNode *query, int rdepth, int
 
 static void
 get_query_schema (struct netconf_session *session, GNode *query, sch_node *qschema,
-                  int schflags, bool is_filter, GList **xml_list)
+                  int schflags, bool is_filter, bool is_subtree, GList **xml_list)
 {
     GNode *qnode = NULL;
     int qdepth = 0;
@@ -903,6 +913,9 @@ get_query_schema (struct netconf_session *session, GNode *query, sch_node *qsche
     /* Get the depth of the response which is the depth of the query
         OR the up until the first path wildcard */
     qdepth = g_node_max_height (query);
+    if (is_subtree && qdepth)
+        qdepth--;
+
     qnode = query;
     while (qnode &&
             g_node_n_children (qnode) == 1 &&
@@ -932,7 +945,7 @@ get_query_schema (struct netconf_session *session, GNode *query, sch_node *qsche
         }
     }
 
-    get_query_to_xml (session, query, qdepth, schflags, xml_list);
+    get_query_to_xml (session, query, qdepth, schflags, is_subtree, xml_list);
 }
 
 static int
@@ -1020,7 +1033,7 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                         g_strfreev(split);
                         return -1;
                     }
-                    get_query_schema (session, query, qschema, schflags, is_filter, xml_list);
+                    get_query_schema (session, query, qschema, schflags, is_filter, false, xml_list);
                 }
             }
             g_strfreev(split);
@@ -1039,9 +1052,8 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
             {
                 qschema = NULL;
                 parms =
-                    sch_xml_to_gnode (g_schema, NULL, tnode,
-                                        schflags | SCH_F_STRIP_DATA | SCH_F_STRIP_KEY, "merge",
-                                        false, &qschema);
+                    sch_xml_to_gnode (g_schema, NULL, tnode, schflags | SCH_F_STRIP_KEY, "merge",
+                                      false, &qschema);
                 query = sch_parm_tree (parms);
                 sch_parm_free (parms);
                 if (!query)
@@ -1066,7 +1078,7 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                         g_free (error_msg);
                         return -1;
                     }
-                    get_query_schema (session, query, qschema, schflags, is_filter, xml_list);
+                    get_query_schema (session, query, qschema, schflags, is_filter, true, xml_list);
                 }
             }
         }
@@ -1165,7 +1177,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
 
     /* Catch for get without filter */
     if (!xml_list)
-        get_query_to_xml (session, NULL, 0, schflags, &xml_list);
+        get_query_to_xml (session, NULL, 0, schflags, false, &xml_list);
 
     /* Send response */
     send_rpc_data (session, rpc, xml_list);
