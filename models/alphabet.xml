@@ -1,0 +1,158 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MODULE xmlns="http://test.com/ns/yang/alphabet"
+    xmlns:alpha="http://test.com/ns/yang/alphabet"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="https://github.com/alliedtelesis/apteryx-xml https://github.com/alliedtelesis/apteryx-xml/releases/download/v1.2/apteryx.xsd"
+    model="alphabet" organization="Test Ltd" version="2023-01-01">
+  <NODE name="alphabet" help="This is the top node">
+    <NODE name="A" help="This is the defining letter">
+      <NODE name="id" mode="rw" help="string" />
+      <NODE name="pre" mode="rw" help="number" />
+      <NODE name="post" mode="rw" help="number" />
+      <NODE name="B" help="This is the defining letter">
+        <NODE name="id" mode="rw" help="string" />
+        <NODE name="pre" mode="rw" help="number" />
+        <NODE name="post" mode="rw" help="number" />
+        <NODE name="C" help="This is the defining letter">
+          <NODE name="id" mode="rw" help="string" />
+          <NODE name="pre" mode="rw" help="number" />
+          <NODE name="post" mode="rw" help="number" />
+          <NODE name="word" mode="rw" help="string" />
+        </NODE>
+        <NODE name="D" help="This is the defining letter">
+          <NODE name="id" mode="rw" help="string" />
+          <NODE name="pre" mode="rw" help="number" />
+          <NODE name="post" mode="rw" help="number" />
+          <NODE name="word" mode="rw" help="string" />
+        </NODE>
+      </NODE>
+      <NODE name="E" help="This is the defining letter">
+        <NODE name="id" mode="rw" help="string" />
+        <NODE name="pre" mode="rw" help="number" />
+        <NODE name="post" mode="rw" help="number" />
+        <NODE name="F" help="This is the defining letter">
+          <NODE name="id" mode="rw" help="string" />
+          <NODE name="pre" mode="rw" help="number" />
+          <NODE name="post" mode="rw" help="number" />
+          <NODE name="G" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="word" mode="rw" help="string" />
+          </NODE>
+          <NODE name="H" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="idrefs" mode="rw" help="string" />
+            <NODE name="word" mode="rw" help="string" />
+          </NODE>
+        </NODE>
+        <NODE name="I" help="This is the defining letter">
+          <NODE name="id" mode="rw" help="string" />
+          <NODE name="pre" mode="rw" help="number" />
+          <NODE name="post" mode="rw" help="number" />
+          <NODE name="J" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="word" mode="rw" help="string" />
+          </NODE>
+          <NODE name="K" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="word" mode="rw" help="string" />
+          </NODE>
+        </NODE>
+        <NODE name="L" help="This is the defining letter">
+          <NODE name="id" mode="rw" help="string" />
+          <NODE name="pre" mode="rw" help="number" />
+          <NODE name="post" mode="rw" help="number" />
+          <NODE name="M" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="word" mode="rw" help="string"/>
+          </NODE>
+          <NODE name="N" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="O" help="This is the defining letter">
+              <NODE name="id" mode="rw" help="string" />
+              <NODE name="pre" mode="rw" help="number" />
+              <NODE name="post" mode="rw" help="number" />
+              <NODE name="word" mode="rw" help="string" />
+            </NODE>
+            <NODE name="P" help="This is the defining letter">
+              <NODE name="id" mode="rw" help="string" />
+              <NODE name="pre" mode="rw" help="number" />
+              <NODE name="post" mode="rw" help="number" />
+              <NODE name="word" mode="rw" help="string" />
+            </NODE>
+          </NODE>
+          <NODE name="Q" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="idrefs" mode="rw" help="string" />
+            <NODE name="word" mode="rw" help="string"/>
+          </NODE>
+        </NODE>
+        <NODE name="R" help="This is the defining letter">
+          <NODE name="id" mode="rw" help="string" />
+          <NODE name="pre" mode="rw" help="number" />
+          <NODE name="post" mode="rw" help="number" />
+          <NODE name="S" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="word" mode="rw" help="string" />
+          </NODE>
+          <NODE name="T" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="word" mode="rw" help="string" />
+          </NODE>
+        </NODE>
+        <NODE name="U" help="This is the defining letter">
+          <NODE name="id" mode="rw" help="string" />
+          <NODE name="pre" mode="rw" help="number" />
+          <NODE name="post" mode="rw" help="number" />
+          <NODE name="V" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="word" mode="rw" help="string" />
+          </NODE>
+          <NODE name="W" help="This is the defining letter">
+            <NODE name="id" mode="rw" help="string" />
+            <NODE name="pre" mode="rw" help="number" />
+            <NODE name="post" mode="rw" help="number" />
+            <NODE name="word" mode="rw" help="string" />
+          </NODE>
+        </NODE>
+      </NODE>
+      <NODE name="X" help="This is the defining letter">
+        <NODE name="id" mode="rw" help="string" />
+        <NODE name="pre" mode="rw" help="number" />
+        <NODE name="post" mode="rw" help="number" />
+        <NODE name="Y" help="This is the defining letter">
+          <NODE name="id" mode="rw" help="string" />
+          <NODE name="pre" mode="rw" help="number" />
+          <NODE name="post" mode="rw" help="number" />
+          <NODE name="word" mode="rw" help="string" />
+        </NODE>
+        <NODE name="Z" help="This is the defining letter">
+          <NODE name="id" mode="rw" help="string" />
+          <NODE name="pre" mode="rw" help="number" />
+          <NODE name="post" mode="rw" help="number" />
+          <NODE name="idrefs" mode="rw" help="string" />
+          <NODE name="word" mode="rw" help="string" />
+        </NODE>
+      </NODE>
+    </NODE>
+  </NODE>
+</MODULE>

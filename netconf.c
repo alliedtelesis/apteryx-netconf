@@ -23,11 +23,22 @@
 #include <pwd.h>
 #define APTERYX_XML_LIBXML2
 #include <apteryx-xml.h>
+#include <libxml/xpath.h>
+#include <libxml/xpathInternals.h>
+#include <libxml/debugXML.h>
 
 #define DEFAULT_LANG "en"
 #define RECV_TIMEOUT_SEC 60
 
 static sch_instance *g_schema = NULL;
+
+typedef enum
+{
+    XPATH_NONE,
+    XPATH_SIMPLE,
+    XPATH_EVALUATE,
+    XPATH_ERROR,
+} xpath_type;
 
 struct netconf_session
 {
@@ -853,8 +864,480 @@ get_full_tree ()
 }
 
 static void
-get_query_to_xml (struct netconf_session *session, GNode *query, int rdepth, int schflags,
-                  bool is_subtree, GList **xml_list)
+cleanup_empty_branches (xmlNode *node, int depth, int max_depth, bool *root_deleted)
+{
+    xmlNode *cur_node = NULL;
+    xmlNode *next_node = NULL;
+
+    if (depth < max_depth - 1)
+    {
+        for (cur_node = node; cur_node; cur_node = next_node)
+        {
+            next_node = cur_node->next;
+            if (cur_node->type == XML_ELEMENT_NODE)
+            {
+                if (!cur_node->children)
+                {
+                    xmlUnlinkNode (cur_node);
+                    xmlFreeNode (cur_node);
+                    if (depth == 0 && cur_node == node)
+                        *root_deleted = true;
+                    continue;
+                }
+            }
+            cleanup_empty_branches (cur_node->children, depth + 1, max_depth, root_deleted);
+        }
+    }
+}
+
+static void
+cleanup_xpath_tree (GHashTable *node_table, xmlNode *node, int depth, int *max_depth, bool *root_deleted)
+{
+    xmlNode *cur_node = NULL;
+    xmlNode *next_node = NULL;
+
+    for (cur_node = node; cur_node; cur_node = next_node)
+    {
+        next_node = cur_node->next;
+        if (cur_node->type == XML_ELEMENT_NODE) {
+            if (!g_hash_table_lookup (node_table, cur_node))
+            {
+                xmlUnlinkNode (cur_node);
+                xmlFreeNode (cur_node);
+                if (depth == 0 && cur_node == node)
+                    *root_deleted = true;
+
+                continue;
+            }
+        }
+
+        cleanup_xpath_tree (node_table, cur_node->children, depth + 1, max_depth, root_deleted);
+    }
+    if (depth > *max_depth)
+        *max_depth = depth;
+
+    if (depth == 0)
+        cleanup_empty_branches (node, depth, *max_depth, root_deleted);
+}
+
+static bool
+_xpath_mark_list_nodes (sch_node *schema, xmlNode *node, int flags, int depth, GHashTable *node_table)
+{
+    sch_node *s_node;
+    sch_node *child;
+    const char *target_name;
+    char *name;
+    bool rc = true;
+
+    for (xmlNode *cur_node = node; cur_node; cur_node = cur_node->next)
+    {
+        if (g_hash_table_lookup (node_table, cur_node))
+        {
+            target_name = (const char *) cur_node->name;
+            for (s_node = schema; s_node; s_node = sch_node_next_sibling (s_node))
+            {
+                name = sch_name (s_node);
+                if (g_strcmp0 (name, target_name) == 0)
+                {
+                    g_free (name);
+                    break;
+                }
+                g_free (name);
+            }
+
+            if (s_node)
+            {
+                if (sch_is_list (s_node))
+                {
+                    xmlNode *first_child = cur_node->children;
+                    if (first_child && !g_hash_table_lookup (node_table, first_child))
+                        g_hash_table_insert (node_table, first_child, first_child);
+                }
+                child = sch_node_child_first (s_node);
+                if (cur_node->children && child)
+                {
+                    _xpath_mark_list_nodes (child, cur_node->children, flags, depth + 1, node_table);
+                }
+            }
+        }
+    }
+
+    return rc;
+}
+
+bool
+xpath_mark_list_nodes (xmlNode * xml, int flags, GHashTable *node_table)
+{
+    sch_node *schema;
+    bool rc = false;
+
+    schema = sch_get_root_schema (g_schema);
+    schema = sch_node_namespace_child (schema, (char *) xml->ns->href, (char *) xml->name);
+
+    if (g_hash_table_lookup (node_table, xml))
+        rc = _xpath_mark_list_nodes (schema, xml, flags, 0, node_table);
+
+    return rc;
+}
+
+void
+xpath_tree_add (GHashTable *node_table, xmlNode *node)
+{
+    xmlNode *cur_node = NULL;
+    xmlNode *next_node = NULL;
+
+    for (cur_node = node; cur_node; cur_node = next_node) {
+        next_node = cur_node->next;
+        if (cur_node->type == XML_ELEMENT_NODE)
+        {
+            if (!g_hash_table_lookup (node_table, cur_node))
+                g_hash_table_insert (node_table, cur_node, cur_node);
+        }
+
+        xpath_tree_add (node_table, cur_node->children);
+    }
+}
+
+static char *
+prepare_xpath_eval_path (char *path, char *ns_prefix)
+{
+    char *xpath;
+    char *new_path = NULL;
+
+    if (path[0] == '/')
+    {
+        if (strlen (path) > 1 && path[1] != '/')
+        {
+            char *colon;
+            colon = strchr (path + 1, ':');
+            if (!colon && ns_prefix)
+            {
+                new_path = g_strdup_printf ("/%s:%s", ns_prefix, path + 1);
+                path = new_path;
+            }
+        }
+    }
+
+    xpath = g_strdup (path);
+    g_free (new_path);
+    return xpath;
+}
+
+void
+xpath_set_namespace (char *path, char **ns_href, char **ns_prefix, xmlDoc *doc,
+                     xmlNode *xml, xmlXPathContext *xpath_ctx)
+{
+    char *href = NULL;
+    char *prefix = NULL;
+    char *next;
+    char *top_node;
+
+    if (!*ns_href || !*ns_prefix)
+    {
+        if (xml->ns)
+        {
+            if (xml->ns->href)
+            {
+                href = g_strdup ((char *) xml->ns->href);
+                if (*ns_href)
+                    g_free (*ns_href);
+                *ns_href = href;
+            }
+            if (xml->ns->prefix)
+            {
+                prefix = g_strdup ((char *) xml->ns->prefix);
+                if (*ns_prefix)
+                    g_free (*ns_prefix);
+                *ns_prefix = prefix;
+            }
+        }
+        if (!*ns_href || !*ns_prefix)
+        {
+            if (path[0] == '/')
+            {
+                next = strchr (path + 1, '/');
+                top_node = g_strndup (path + 1, next - path - 1);
+                sch_node *lookup = sch_lookup (g_schema, top_node);
+                if (lookup)
+                {
+                    href = sch_namespace (lookup);
+                    prefix = sch_prefix (lookup);
+                }
+
+                if (href && prefix)
+                {
+                    g_free (*ns_href);
+                    *ns_href = href;
+                    g_free (*ns_prefix);
+                    *ns_prefix = prefix;
+                }
+                else
+                {
+                    g_free (href);
+                    g_free (prefix);
+
+                    /* If we don't have a prefix yet, try the path */
+                    if (!*ns_prefix)
+                    {
+                        char *path = path;
+                        char *colon;
+
+                        colon = strchr (path + 1, ':');
+                        if (colon)
+                            *ns_prefix = g_strndup (path +1, colon - path - 1);
+                    }
+                }
+                g_free (top_node);
+            }
+        }
+    }
+
+    if (*ns_href && *ns_prefix)
+        xmlXPathRegisterNs (xpath_ctx,  BAD_CAST *ns_prefix, BAD_CAST *ns_href);
+}
+
+static bool
+xpath_evaluate (struct netconf_session *session, xmlNode *rpc, char *path, char **ns_href, char **ns_prefix,
+                xmlNode *xml, int schflags, GList **xml_list)
+{
+    xmlDoc *doc = NULL;
+    xmlXPathContext *xpath_ctx;
+    xmlNode *root_node = NULL;
+    char *xpath;
+    char *error = NULL;
+    xmlXPathObject* xpath_obj;
+    bool root_deleted = false;
+    GHashTable *node_table = NULL;
+    int status = 0;
+
+    doc = xmlNewDoc (BAD_CAST "1.0");
+    xmlDocSetRootElement (doc, xml);
+    xmlSetTreeDoc (xml, doc);
+    xmlDebugDumpNode (stdout, xml, 5);
+    xpath_ctx = xmlXPathNewContext (doc);
+    if (xpath_ctx)
+    {
+        xpath_set_namespace (path, ns_href, ns_prefix, doc, xml, xpath_ctx);
+        xpath = prepare_xpath_eval_path (path, *ns_prefix);
+        xpath_obj = xmlXPathEvalExpression (BAD_CAST xpath, xpath_ctx);
+        if (apteryx_netconf_verbose)
+            xmlXPathDebugDumpObject(stdout, xpath_obj, 0);
+
+        if (xpath_obj)
+        {
+            xmlNode *cur;
+            int size;
+            int i;
+            int max_depth = 0;
+            xmlNodeSet *nodes = xpath_obj->nodesetval;
+            if (nodes)
+            {
+                size = nodes->nodeNr;
+                if (size == 0)
+                {
+                    VERBOSE ("XPATH: No match\n");
+                    xmlUnlinkNode (xml);
+                    xmlFreeNode (xml);
+                    xml = NULL;
+                    *xml_list = g_list_append (*xml_list, xml);
+                }
+                else
+                {
+                    node_table = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, NULL);
+                    for(i = 0; i < size; ++i)
+                    {
+                        if(nodes->nodeTab[i]->type == XML_ELEMENT_NODE)
+                        {
+                            cur = nodes->nodeTab[i];
+
+                            if (!g_hash_table_lookup (node_table, cur))
+                                g_hash_table_insert (node_table, cur, cur);
+
+                            xpath_tree_add (node_table, cur->children);
+
+                            if (cur->parent)
+                            {
+                                while (cur->parent && g_strcmp0 ((char *) cur->parent->name, "root") != 0)
+                                {
+                                    cur = cur->parent;
+                                    if (!g_hash_table_lookup (node_table, cur))
+                                        g_hash_table_insert (node_table, cur, cur);
+                                }
+                            }
+                        }
+                    }
+                    xpath_mark_list_nodes (xml, schflags, node_table);
+
+                    cleanup_xpath_tree(node_table, xml, 0, &max_depth, &root_deleted);
+                    if (root_deleted)
+                        xml = NULL;
+
+                    g_hash_table_destroy (node_table);
+                    *xml_list = g_list_append (*xml_list, xml);
+                }
+            }
+            else
+            {
+                xmlUnlinkNode (xml);
+                xmlFreeNode (xml);
+                xml = NULL;
+            }
+        }
+        else
+        {
+            error = "invalid predicate";
+            status = -1;
+        }
+        g_free (xpath);
+    }
+    else
+    {
+        error = "memory-allocation-error";
+        status = -1;
+    }
+
+    if (status < 0)
+    {
+        gchar *error_msg = g_strdup_printf ("NETCONF: XPATH %s", error);
+        VERBOSE ("%s\n", error_msg);
+        send_rpc_error_full (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED, NC_ERR_TYPE_APP,
+                             error_msg, NULL, NULL, true);
+        g_free (error_msg);
+        xmlUnlinkNode (xml);
+        xmlFreeNode (xml);
+        xml = NULL;
+    }
+
+    xmlXPathFreeObject(xpath_obj);
+    xmlXPathFreeContext(xpath_ctx);
+
+
+    /* Cleaning up a doc is tricky */
+    if (xml)
+        xmlSetTreeDoc (xmlDocGetRootElement(doc), NULL);
+
+    root_node = xmlNewNode (NULL, BAD_CAST "root");
+    xmlDocSetRootElement (doc, root_node);
+    xmlFreeDoc (doc);
+
+    return status == 0;
+}
+
+static char *
+find_first_non_path(char *path)
+{
+    char *ptr = path;
+    bool slash = false;
+    int len = strlen (path);
+    int i;
+    for (i = 0; i < len; i++)
+    {
+        if (*ptr == '*' || *ptr == '[' || *ptr == '@')
+        {
+            if (slash)
+                ptr--;
+
+            return ptr;
+        }
+        if (*ptr == '/')
+        {
+            if (slash)
+                return ptr - 1;
+
+            slash = true;
+        }
+        else
+            slash = false;
+        ptr++;
+    }
+    return NULL;
+}
+
+static xpath_type
+prepare_xpath_query_path (char *path, char *schema_path, char **sch_path)
+{
+    char *non_path = NULL;
+    int len;
+
+    *sch_path = NULL;
+    if (path[0] != '/')
+    {
+        return XPATH_ERROR;
+    }
+    len = strlen (path);
+    if (len == 1)
+    {
+        *sch_path = g_strdup (path);
+        return XPATH_SIMPLE;
+    }
+
+    /* Check for // syntax */
+    if (path[1] == '/')
+    {
+        if (schema_path)
+        {
+            *sch_path = g_strdup ((char *) schema_path);
+            return XPATH_EVALUATE;
+        }
+        /* Trying to do a // query but we have no namespace. This will not work */
+        return XPATH_ERROR;
+    }
+    non_path = find_first_non_path (path);
+    if (non_path)
+    {
+        *sch_path = g_strndup (path, non_path - path);
+        return XPATH_EVALUATE;
+    }
+    *sch_path = g_strdup (path);
+    return XPATH_SIMPLE;
+}
+
+static char *
+check_namespace_set (xmlNode *node, char **ns_href, char **ns_prefix)
+{
+    xmlNs *ns = node->nsDef;
+    char *path;
+    char *schema_path = NULL;
+
+    while (ns)
+    {
+        sch_node *s_node = sch_node_by_namespace (g_schema, (char *) ns->href, (char *) ns->prefix);
+        if (s_node)
+            path = sch_path (s_node);
+        else
+            path = NULL;
+
+        schema_path = path;
+        if (path)
+        {
+            if (ns->href && ns_href)
+            {
+                if (*ns_href)
+                    g_free (*ns_href);
+                *ns_href = g_strdup ((char *)ns->href);
+            }
+
+            if (ns->prefix && ns_prefix)
+            {
+                if (*ns_prefix)
+                    g_free (*ns_prefix);
+                *ns_prefix = g_strdup((char *) ns->prefix);
+            }
+
+            if (!*ns_href && !*ns_prefix)
+                g_free (path);
+            else
+                break;
+        }
+        ns = ns->next;
+    }
+    return schema_path;
+}
+
+static bool
+get_query_to_xml (struct netconf_session *session, xmlNode *rpc, GNode *query,
+                  int rdepth, char *path, char **ns_href, char **ns_prefix,
+                  xpath_type x_type, int schflags, bool is_subtree, GList **xml_list)
 {
     GNode *tree;
     xmlNode *xml = NULL;
@@ -900,12 +1383,18 @@ get_query_to_xml (struct netconf_session *session, GNode *query, int rdepth, int
     /* Convert result to XML */
     xml = tree ? sch_gnode_to_xml (g_schema, NULL, tree, schflags) : NULL;
     apteryx_free_tree (tree);
-    *xml_list = g_list_append (*xml_list, xml);
+
+    if (xml && x_type == XPATH_EVALUATE)
+        return xpath_evaluate (session, rpc, path, ns_href, ns_prefix, xml, schflags, xml_list);
+    else
+        *xml_list = g_list_append (*xml_list, xml);
+    return true;
 }
 
-static void
-get_query_schema (struct netconf_session *session, GNode *query, sch_node *qschema,
-                  int schflags, bool is_filter, bool is_subtree, GList **xml_list)
+static bool
+get_query_schema (struct netconf_session *session, xmlNode *rpc, GNode *query, sch_node *qschema,
+                  char *path, char **ns_href, char **ns_prefix, xpath_type x_type, int schflags,
+                  bool is_filter, bool is_subtree, GList **xml_list)
 {
     GNode *qnode = NULL;
     int qdepth = 0;
@@ -945,7 +1434,20 @@ get_query_schema (struct netconf_session *session, GNode *query, sch_node *qsche
         }
     }
 
-    get_query_to_xml (session, query, qdepth, schflags, is_subtree, xml_list);
+    return get_query_to_xml (session, rpc, query, qdepth, path, ns_href,
+                             ns_prefix, x_type, schflags, is_subtree, xml_list);
+}
+
+static void
+cleanup_on_xpath_error (struct netconf_session *session, char *attr, gchar **split,
+                        char *ns_href, char *ns_prefix)
+{
+    free (attr);
+    g_strfreev(split);
+    g_free (ns_href);
+    g_free (ns_prefix);
+    session->counters.in_bad_rpcs++;
+    netconf_global_stats.session_totals.in_bad_rpcs++;
 }
 
 static int
@@ -989,6 +1491,11 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
         }
         if (g_strcmp0 (attr, "xpath") == 0)
         {
+            char *schema_path = NULL;
+            char *ns_href = NULL;
+            char *ns_prefix = NULL;
+            char *sch_path = NULL;
+
             free (attr);
             attr = (char *) xmlGetProp (node, BAD_CAST "select");
             if (!attr)
@@ -998,6 +1505,7 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                 VERBOSE ("XPATH filter missing select attribute");
                 return -1;
             }
+
             VERBOSE ("FILTER: XPATH: %s\n", attr);
             is_filter = true;
             split = g_strsplit (attr, "|", -1);
@@ -1007,16 +1515,30 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                 char *path = g_strstrip (split[i]);
                 qschema = NULL;
                 schflags |= SCH_F_XPATH;
-                query = sch_path_to_gnode (g_schema, NULL, path, schflags, &qschema);
-                if (!query)
+                xpath_type x_type;
+                if (ns_prefix)
+                {
+                    g_free (ns_prefix);
+                    ns_prefix = NULL;
+                }
+                if (ns_href)
+                {
+                    g_free (ns_href);
+                    ns_href = NULL;
+                }
+                schema_path = check_namespace_set (node, &ns_href, &ns_prefix);
+                x_type = prepare_xpath_query_path (path, schema_path, &sch_path);
+                g_free (schema_path);
+                if (x_type != XPATH_ERROR)
+                    query = sch_path_to_gnode (g_schema, NULL, sch_path, schflags | SCH_F_XPATH,
+                                                &qschema);
+                g_free (sch_path);
+                if (x_type == XPATH_ERROR || (!query && x_type == XPATH_SIMPLE))
                 {
                     VERBOSE ("XPATH: malformed filter\n");
                     *ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_MALFORMED_MSG, NC_ERR_TYPE_RPC,
                                                 "XPATH: malformed filter", NULL, NULL, true);
-                    free (attr);
-                    g_strfreev(split);
-                    session->counters.in_bad_rpcs++;
-                    netconf_global_stats.session_totals.in_bad_rpcs++;
+                    cleanup_on_xpath_error (session, attr, split, ns_href, ns_prefix);
                     return -1;
                 }
 
@@ -1029,13 +1551,37 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                         *ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED, NC_ERR_TYPE_APP,
                                                     error_msg, NULL, NULL, true);
                         g_free (error_msg);
-                        free (attr);
-                        g_strfreev(split);
+                        cleanup_on_xpath_error (session, attr, split, ns_href, ns_prefix);
                         return -1;
                     }
-                    get_query_schema (session, query, qschema, schflags, is_filter, false, xml_list);
+
+                    if (!get_query_schema (session, rpc, query, qschema, path, &ns_href, &ns_prefix, x_type,
+                                           schflags, is_filter, false, xml_list))
+                    {
+                        cleanup_on_xpath_error (session, attr, split, ns_href, ns_prefix);
+                        return -1;
+                    }
+                }
+                else if (!query && x_type == XPATH_EVALUATE)
+                {
+                    if (!get_query_to_xml (session, rpc, query, 0, path, &ns_href,
+                                           &ns_prefix, x_type, schflags, false, xml_list))
+                    {
+                        cleanup_on_xpath_error (session, attr, split, ns_href, ns_prefix);
+                        return -1;
+                    }
+                }
+                else
+                {
+                    VERBOSE ("XPATH: malformed query\n");
+                    *ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_MALFORMED_MSG, NC_ERR_TYPE_RPC,
+                                                "XPATH: malformed query", NULL, NULL, true);
+                    cleanup_on_xpath_error (session, attr, split, ns_href, ns_prefix);
+                    return -1;
                 }
             }
+            g_free (ns_href);
+            g_free (ns_prefix);
             g_strfreev(split);
         }
         else if (g_strcmp0 (attr, "subtree") == 0)
@@ -1076,9 +1622,17 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                         *ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED, NC_ERR_TYPE_APP,
                                                     error_msg, NULL, NULL, true);
                         g_free (error_msg);
+                        free (attr);
                         return -1;
                     }
-                    get_query_schema (session, query, qschema, schflags, is_filter, true, xml_list);
+                    if (!get_query_schema (session, rpc, query, qschema, NULL, NULL, NULL, XPATH_NONE, schflags,
+                                           is_filter, true, xml_list))
+                    {
+                        free (attr);
+                        session->counters.in_bad_rpcs++;
+                        netconf_global_stats.session_totals.in_bad_rpcs++;
+                        return -1;
+                    }
                 }
             }
         }
@@ -1177,7 +1731,15 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
 
     /* Catch for get without filter */
     if (!xml_list)
-        get_query_to_xml (session, NULL, 0, schflags, false, &xml_list);
+    {
+        if (!get_query_to_xml (session, rpc, NULL, 0, NULL, NULL, NULL,
+                               XPATH_NONE, schflags, false, &xml_list))
+        {
+            session->counters.in_bad_rpcs++;
+            netconf_global_stats.session_totals.in_bad_rpcs++;
+            return false;
+        }
+    }
 
     /* Send response */
     send_rpc_data (session, rpc, xml_list);

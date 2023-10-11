@@ -25,6 +25,7 @@
 #include <string.h>
 #include <glib.h>
 #include <glib-unix.h>
+#include <ctype.h>
 #include <syslog.h>
 #include <apteryx.h>
 

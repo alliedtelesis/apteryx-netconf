@@ -64,6 +64,103 @@ db_default = [
     ('/interfaces/interface/eth3/name', 'eth3'),
     ('/interfaces/interface/eth3/mtu', '1500'),
     ('/interfaces/interface/eth3/status', 'waking up'),
+    # Data to test xpath
+    ('/alphabet/A/id', 'n1'),
+    ('/alphabet/A/pre', '1'),
+    ('/alphabet/A/post', '26'),
+    ('/alphabet/A/B/id', 'n2'),
+    ('/alphabet/A/B/pre', '2'),
+    ('/alphabet/A/B/post', '3'),
+    ('/alphabet/A/B/C/id', 'n3'),
+    ('/alphabet/A/B/C/pre', '3'),
+    ('/alphabet/A/B/C/post', '1'),
+    ('/alphabet/A/B/C/word', 'clergywoman'),
+    ('/alphabet/A/B/D/id', 'n4'),
+    ('/alphabet/A/B/D/pre', '4'),
+    ('/alphabet/A/B/D/post', '2'),
+    ('/alphabet/A/B/D/word', 'decadent'),
+    ('/alphabet/A/E/id', 'n5'),
+    ('/alphabet/A/E/pre', '5'),
+    ('/alphabet/A/E/post', '22'),
+    ('/alphabet/A/E/F/id', 'n6'),
+    ('/alphabet/A/E/F/pre', '6'),
+    ('/alphabet/A/E/F/post', '6'),
+    ('/alphabet/A/E/F/G/id', 'n7'),
+    ('/alphabet/A/E/F/G/pre', '7'),
+    ('/alphabet/A/E/F/G/post', '4'),
+    ('/alphabet/A/E/F/G/word', 'gentility'),
+    ('/alphabet/A/E/F/H/id', 'n8'),
+    ('/alphabet/A/E/F/H/pre', '8'),
+    ('/alphabet/A/E/F/H/post', '5'),
+    ('/alphabet/A/E/F/H/idrefs', 'n17 n26'),
+    ('/alphabet/A/E/F/H/word', 'happy-go-lucky man'),
+    ('/alphabet/A/E/I/id', 'n9'),
+    ('/alphabet/A/E/I/pre', '9'),
+    ('/alphabet/A/E/I/post', '9'),
+    ('/alphabet/A/E/I/J/id', 'n10'),
+    ('/alphabet/A/E/I/J/pre', '10'),
+    ('/alphabet/A/E/I/J/post', '7'),
+    ('/alphabet/A/E/I/J/word', 'jigsaw'),
+    ('/alphabet/A/E/I/K/id', 'n11'),
+    ('/alphabet/A/E/I/K/pre', '11'),
+    ('/alphabet/A/E/I/K/post', '8'),
+    ('/alphabet/A/E/I/K/word', 'kerchief'),
+    ('/alphabet/A/E/L/id', 'n12'),
+    ('/alphabet/A/E/L/pre', '12'),
+    ('/alphabet/A/E/L/post', '15'),
+    ('/alphabet/A/E/L/M/id', 'n13'),
+    ('/alphabet/A/E/L/M/pre', '13'),
+    ('/alphabet/A/E/L/M/post', '10'),
+    ('/alphabet/A/E/L/N/id', 'n14'),
+    ('/alphabet/A/E/L/N/pre', '14'),
+    ('/alphabet/A/E/L/N/post', '13'),
+    ('/alphabet/A/E/L/N/O/id', 'n15'),
+    ('/alphabet/A/E/L/N/O/pre', '15'),
+    ('/alphabet/A/E/L/N/O/post', '11'),
+    ('/alphabet/A/E/L/N/O/word', 'ovenware'),
+    ('/alphabet/A/E/L/N/P/id', 'n16'),
+    ('/alphabet/A/E/L/N/P/pre', '16'),
+    ('/alphabet/A/E/L/N/P/post', '12'),
+    ('/alphabet/A/E/L/N/P/word', 'plentiful'),
+    ('/alphabet/A/E/L/Q/id', 'n17'),
+    ('/alphabet/A/E/L/Q/pre', '17'),
+    ('/alphabet/A/E/L/Q/post', '14'),
+    ('/alphabet/A/E/L/Q/idrefs', 'n8 n26'),
+    ('/alphabet/A/E/L/Q/word', 'quarrelsome'),
+    ('/alphabet/A/E/R/id', 'n18'),
+    ('/alphabet/A/E/R/pre', '18'),
+    ('/alphabet/A/E/R/post', '18'),
+    ('/alphabet/A/E/R/S/id', 'n19'),
+    ('/alphabet/A/E/R/S/pre', '19'),
+    ('/alphabet/A/E/R/S/post', '16'),
+    ('/alphabet/A/E/R/S/word', 'sage'),
+    ('/alphabet/A/E/R/T/id', 'n20'),
+    ('/alphabet/A/E/R/T/pre', '20'),
+    ('/alphabet/A/E/R/T/post', '17'),
+    ('/alphabet/A/E/R/T/word', 'tattered'),
+    ('/alphabet/A/E/U/id', 'n21'),
+    ('/alphabet/A/E/U/pre', '21'),
+    ('/alphabet/A/E/U/post', '21'),
+    ('/alphabet/A/E/U/V/id', 'n22'),
+    ('/alphabet/A/E/U/V/pre', '22'),
+    ('/alphabet/A/E/U/V/post', '19'),
+    ('/alphabet/A/E/U/V/word', 'volume'),
+    ('/alphabet/A/E/U/W/id', 'n23'),
+    ('/alphabet/A/E/U/W/pre', '23'),
+    ('/alphabet/A/E/U/W/post', '20'),
+    ('/alphabet/A/E/U/W/word', 'wriggle'),
+    ('/alphabet/A/X/id', 'n24'),
+    ('/alphabet/A/X/pre', '24'),
+    ('/alphabet/A/X/post', '25'),
+    ('/alphabet/A/X/Y/id', 'n25'),
+    ('/alphabet/A/X/Y/pre', '25'),
+    ('/alphabet/A/X/Y/post', '23'),
+    ('/alphabet/A/X/Y/word', 'yawn'),
+    ('/alphabet/A/X/Z/id', 'n26'),
+    ('/alphabet/A/X/Z/pre', '26'),
+    ('/alphabet/A/X/Z/post', '24'),
+    ('/alphabet/A/X/Z/idrefs', 'n8 n17'),
+    ('/alphabet/A/X/Z/word', 'zuzzurellone'),
 ]
 
 
@@ -133,14 +230,19 @@ def diffXML(a, b):
     return None
 
 
-def _get_test_with_filter(f_value, expected=None, f_type='subtree'):
+def _get_test_with_filter(f_value, expected=None, f_ns=None, f_type='subtree'):
     """
     Perform a get with the given filter, which can be of type 'subtree' or 'xpath'. If expectede
     respose is given, assert that it was the same as the response from the get. Return the response
     so the caller can perform its own tests.
     """
     m = connect()
-    xml = m.get(filter=(f_type, f_value)).data
+    if f_ns is not None:
+        filter_str = '<nc:filter type="xpath" xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" %s select="%s" />' % (f_ns, f_value)
+        print("Filter_str = ", filter_str)
+        xml = m.get(filter=filter_str).data
+    else:
+        xml = m.get(filter=(f_type, f_value)).data
     print(etree.tostring(xml, pretty_print=True, encoding="unicode"))
     if expected:
         expected = toXML(expected)
