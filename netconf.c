@@ -852,20 +852,8 @@ get_full_tree ()
     return tree;
 }
 
-static GNode*
-get_response_node (GNode *tree, int rdepth)
-{
-    GNode *rnode = tree;
-
-    while (--rdepth && rnode)
-        rnode = rnode->children;
-
-    return rnode;
-}
-
 static void
-get_query_to_xml (struct netconf_session *session, GNode *query, sch_node *rschema, GNode *rnode,
-                  int rdepth, GNode *qnode, int schflags, GList **xml_list)
+get_query_to_xml (struct netconf_session *session, GNode *query, int rdepth, int schflags, GList **xml_list)
 {
     GNode *tree;
     xmlNode *xml = NULL;
@@ -881,28 +869,22 @@ get_query_to_xml (struct netconf_session *session, GNode *query, sch_node *rsche
     }
 
     tree = query ? apteryx_query (query) : get_full_tree ();
-    if (rschema && (schflags & SCH_F_ADD_DEFAULTS))
+    if (schflags & SCH_F_ADD_DEFAULTS)
     {
         if (tree)
-        {
-            rnode = get_response_node (tree, rdepth);
-            sch_traverse_tree (g_schema, rschema, rnode, schflags, 0);
-        }
-        else if (!tree)
+            sch_traverse_tree (g_schema, NULL, tree, schflags | SCH_F_FILTER_RDEPTH, rdepth);
+        else
         {
             /* Nothing in the database, but we may have defaults! */
             tree = query;
             query = NULL;
-            sch_traverse_tree (g_schema, rschema, qnode, schflags, 0);
+            sch_traverse_tree (g_schema, NULL, tree, schflags | SCH_F_FILTER_RDEPTH, rdepth);
         }
     }
 
     if (tree && (schflags & SCH_F_TRIM_DEFAULTS))
-    {
-        /* Get rid of any unwanted nodes */
-        GNode *rnode = get_response_node (tree, rdepth);
-        sch_traverse_tree (g_schema, rschema, rnode, schflags, 0);
-     }
+            sch_traverse_tree (g_schema, NULL, tree, schflags | SCH_F_FILTER_RDEPTH, rdepth);
+
     apteryx_free_tree (query);
 
     /* Convert result to XML */
@@ -915,45 +897,26 @@ static void
 get_query_schema (struct netconf_session *session, GNode *query, sch_node *qschema,
                   int schflags, bool is_filter, GList **xml_list)
 {
-    GNode *rnode = NULL;
-    sch_node *rschema = NULL;
     GNode *qnode = NULL;
     int qdepth = 0;
-    int rdepth;
-    int diff;
 
     /* Get the depth of the response which is the depth of the query
         OR the up until the first path wildcard */
     qdepth = g_node_max_height (query);
-    rdepth = 1;
-    rnode = query;
-    while (rnode &&
-            g_node_n_children (rnode) == 1 &&
-            g_strcmp0 (APTERYX_NAME (g_node_first_child (rnode)), "*") != 0)
+    qnode = query;
+    while (qnode &&
+            g_node_n_children (qnode) == 1 &&
+            g_strcmp0 (APTERYX_NAME (g_node_first_child (qnode)), "*") != 0)
     {
-        rnode = g_node_first_child (rnode);
-        rdepth++;
+        qnode = g_node_first_child (qnode);
     }
 
-    qnode = rnode;
     while (qnode->children)
         qnode = qnode->children;
 
     if (qdepth && qnode && !g_node_first_child (qnode) &&
             g_strcmp0 (APTERYX_NAME (qnode), "*") == 0)
         qdepth--;
-
-    rschema = qschema;
-    diff = qdepth - rdepth;
-    while (diff--)
-        rschema = sch_node_parent (rschema);
-
-    if (sch_node_parent (rschema) && sch_is_list (sch_node_parent (rschema)))
-    {
-        /* We need to present the list rather than the key */
-        rschema = sch_node_parent (rschema);
-        rdepth--;
-    }
 
     /* Without a query we may need to add a wildcard to get everything from here down */
     if (is_filter && qdepth == g_node_max_height (query) && !(schflags & SCH_F_DEPTH_ONE))
@@ -969,7 +932,7 @@ get_query_schema (struct netconf_session *session, GNode *query, sch_node *qsche
         }
     }
 
-    get_query_to_xml (session, query, rschema, rnode, rdepth, qnode, schflags, xml_list);
+    get_query_to_xml (session, query, qdepth, schflags, xml_list);
 }
 
 static int
@@ -1202,7 +1165,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
 
     /* Catch for get without filter */
     if (!xml_list)
-        get_query_to_xml (session, NULL, NULL, NULL, 0, NULL, schflags, &xml_list);
+        get_query_to_xml (session, NULL, 0, schflags, &xml_list);
 
     /* Send response */
     send_rpc_data (session, rpc, xml_list);
