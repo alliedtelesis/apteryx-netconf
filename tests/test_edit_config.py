@@ -529,3 +529,169 @@ def test_edit_config_empty_delete():
     xml = _edit_config_test(payload, post_xpath='/test/settings/enable')
     print(etree.tostring(xml, pretty_print=True, encoding="unicode"))
     assert etree.XPath("//text()")(xml) == []
+
+
+def test_edit_config_delete_list_translate():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test>
+    <xlat-animals>
+        <xlat-animal xc:operation="delete">
+            <name>cat</name>
+        </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/xlat-test/xlat-animals", exc_str=["cat"])
+
+
+# EDIT-CONFIG (operation=replace)
+#  replace:  The configuration data identified by the element
+#     containing this attribute replaces any related configuration
+#     in the configuration datastore identified by the <target>
+#     parameter.  If no such configuration data exists in the
+#     configuration datastore, it is created.  Unlike a
+#     <copy-config> operation, which replaces the entire target
+#     configuration, only the configuration actually present in
+#     the <config> parameter is affected.
+
+def test_edit_config_replace_list_item_translate():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test>
+    <xlat-animals>
+        <xlat-animal xc:operation="replace">
+            <name>cat</name>
+            <type>slow</type>
+        </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/xlat-test/xlat-animals/xlat-animal[name='cat']", inc_str=["slow"], exc_str=["big"])
+
+
+def test_edit_config_replace_all_translate():
+    """
+    Replace all animals with one (existing) animal.
+    """
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test>
+    <xlat-animals xc:operation="replace">
+      <xlat-animal>
+        <name>cat</name>
+        <type>fast</type>
+        <colour>tawny</colour>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath='/xlat-test/xlat-animals', inc_str=["cat"], exc_str=["dog", "mouse"])
+
+
+def test_edit_config_replace_one_full_translate():
+    """
+    Replace one animal. Fully specify the replacement.
+    """
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test>
+    <xlat-animals>
+      <xlat-animal xc:operation="replace">
+        <name>cat</name>
+        <type>slow</type>
+        <colour>tawny</colour>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</config>
+"""
+    xml = _edit_config_test(payload, post_xpath='/xlat-test/xlat-animals', inc_str=["cat", "dog", "mouse"])
+    assert xml.find('./{*}xlat-test/{*}xlat-animals/{*}xlat-animal[{*}name="cat"]/{*}type').text == 'slow'
+    assert xml.find('./{*}xlat-test/{*}xlat-animals/{*}xlat-animal[{*}name="cat"]/{*}colour').text == 'tawny'
+
+
+@pytest.mark.skip(reason="nothing found, no defaults even")
+def test_edit_config_replace_one_default_translate():
+    """
+    Replace one animal. Allow all values to revert to default.
+    """
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test>
+    <xlat-animals>
+      <xlat-animal xc:operation="replace">
+        <name>mouse</name>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</config>
+"""
+    xml = _edit_config_test(payload, post_xpath='/xlat-test/xlat-animals', inc_str=["cat", "dog", "mouse"])
+    print(etree.tostring(xml, pretty_print=True, encoding="unicode"))
+    assert xml.find('./{*}xlat-test/{*}xlat-animals/{*}xlat-animal[name="mouse"]/{*}type').text == 'fast'
+    assert xml.find('./{*}xlat-test/{*}xlat-animals/{*}xlat-animal[name="mouse"]/{*}colour') is None
+
+
+# EDIT-CONFIG (operation=create)
+#  create:  The configuration data identified by the element
+#     containing this attribute is added to the configuration if
+#     and only if the configuration data does not already exist in
+#     the configuration datastore.  If the configuration data
+#     exists, an <rpc-error> element is returned with an
+#     <error-tag> value of "data-exists".
+
+def test_edit_config_create_list_item_translate():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test>
+    <xlat-animals>
+        <xlat-animal xc:operation="create">
+            <name>penguin</name>
+            <type>fast</type>
+        </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/xlat-test/xlat-animals", inc_str=["penguin"])
+
+
+def test_edit_config_create_list_item_exists_translate():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test>
+    <xlat-animals>
+        <xlat-animal xc:operation="create">
+            <name>cat</name>
+            <type>slow</type>
+        </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "data-exists", "type": "application"})
+
+
+def test_edit_config_create_list_item_field_translate():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test>
+    <xlat-animals>
+        <xlat-animal>
+            <name>cat</name>
+            <colour xc:operation="create">white</colour>
+        </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/xlat-test/xlat-animals", inc_str=["white"])

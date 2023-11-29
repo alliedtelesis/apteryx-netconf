@@ -5717,3 +5717,37 @@ def test_get_xpath_functions_f31():
 </nc:data>
     """
     _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_list_select_one_trunk_translate():
+    xpath = "/xlat-test/xlat-animals/xlat-animal[name='cat']"
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+        <xlat-animals>
+            <xlat-animal>
+                <name>cat</name>
+                <type>fast</type>
+            </xlat-animal>
+        </xlat-animals>
+    </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_list_select_one_parameter_translate():
+    xpath = "/xlat-test/xlat-animals/xlat-animal[name='cat']/type"
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+        <xlat-animals>
+            <xlat-animal>
+                <name>cat</name>
+                <type>fast</type>
+            </xlat-animal>
+        </xlat-animals>
+    </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')

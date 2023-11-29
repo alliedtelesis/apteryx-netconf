@@ -714,3 +714,204 @@ def test_get_subtree_select_key_value_other_field_exp_two_results():
 </nc:data>
     """
     _get_test_with_filter(select, expected)
+
+
+def test_get_subtree_list_container_translate():
+    select = '<xlat-test><xlat-animals/></xlat-test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+    <xlat-animals>
+      <xlat-animal>
+        <name>cat</name>
+        <type>fast</type>
+      </xlat-animal>
+      <xlat-animal>
+        <name>dog</name>
+        <colour>brown</colour>
+      </xlat-animal>
+      <xlat-animal>
+        <name>hamster</name>
+        <type>slow</type>
+        <food>
+          <name>banana</name>
+          <type>fruit</type>
+        </food>
+        <food>
+          <name>nuts</name>
+          <type>kibble</type>
+        </food>
+      </xlat-animal>
+      <xlat-animal>
+        <name>mouse</name>
+        <type>slow</type>
+        <colour>grey</colour>
+      </xlat-animal>
+      <xlat-animal>
+        <name>parrot</name>
+        <type>fast</type>
+        <colour>blue</colour>
+        <toys>
+          <toy>puzzles</toy>
+          <toy>rings</toy>
+        </toys>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(select, expected)
+
+
+def test_get_subtree_list_element_translate():
+    select = '<xlat-test><xlat-animals><xlat-animal/></xlat-animals></xlat-test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+    <xlat-animals>
+      <xlat-animal>
+        <name>cat</name>
+        <type>fast</type>
+      </xlat-animal>
+      <xlat-animal>
+        <name>dog</name>
+        <colour>brown</colour>
+      </xlat-animal>
+      <xlat-animal>
+        <name>hamster</name>
+        <type>slow</type>
+        <food>
+          <name>banana</name>
+          <type>fruit</type>
+        </food>
+        <food>
+          <name>nuts</name>
+          <type>kibble</type>
+        </food>
+      </xlat-animal>
+      <xlat-animal>
+        <name>mouse</name>
+        <type>slow</type>
+        <colour>grey</colour>
+      </xlat-animal>
+      <xlat-animal>
+        <name>parrot</name>
+        <type>fast</type>
+        <colour>blue</colour>
+        <toys>
+          <toy>puzzles</toy>
+          <toy>rings</toy>
+        </toys>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(select, expected)
+
+
+def test_get_subtree_list_parameter_translated():
+    select = '<xlat-test><xlat-animals><xlat-animal><name/></xlat-animal></xlat-animals></xlat-test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+    <xlat-animals>
+      <xlat-animal>
+        <name>cat</name>
+      </xlat-animal>
+      <xlat-animal>
+        <name>dog</name>
+      </xlat-animal>
+      <xlat-animal>
+        <name>hamster</name>
+      </xlat-animal>
+      <xlat-animal>
+        <name>mouse</name>
+      </xlat-animal>
+      <xlat-animal>
+        <name>parrot</name>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(select, expected)
+
+
+def test_get_subtree_list_parameter_named_translated():
+    select = '<xlat-test><xlat-animals><xlat-animal><name>cat</name><type/></xlat-animal></xlat-animals></xlat-test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+    <xlat-animals>
+      <xlat-animal>
+        <name>cat</name>
+        <type>fast</type>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(select, expected)
+
+
+def test_get_subtree_list_parameter_named_duplicate_translated():
+    select = '<xlat-test><xlat-animals><xlat-animal><name>hamster</name><food/></xlat-animal></xlat-animals></xlat-test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+    <xlat-animals>
+      <xlat-animal>
+        <name>hamster</name>
+        <food>
+          <name>banana</name>
+          <type>fruit</type>
+        </food>
+        <food>
+          <name>nuts</name>
+          <type>kibble</type>
+        </food>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(select, expected)
+
+
+def test_get_subtree_list_parameter_named_duplicate_again_translated():
+    select = '<xlat-test><xlat-animals><xlat-animal><name>hamster</name><food><name>banana</name><type/></food></xlat-animal></xlat-animals></xlat-test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+    <xlat-animals>
+      <xlat-animal>
+        <name>hamster</name>
+        <food>
+          <name>banana</name>
+          <type>fruit</type>
+        </food>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(select, expected)
+
+
+def test_get_subtree_select_interface():
+    select = """
+<filter type="subtree">
+<interfaces xmlns="http://example.com/ns/interfaces">
+  <interface>
+    <name>eth2</name>
+    <status></status>
+  </interface>
+</interfaces>
+</filter>
+    """
+    m = connect()
+    xml = m.get(select).data
+    print(etree.tostring(xml, pretty_print=True, encoding="unicode"))
+    assert xml.find('./{*}interfaces/{*}interface[{*}name="eth2"]/{*}status').text == 'not feeling so good'
+    m.close_session()
