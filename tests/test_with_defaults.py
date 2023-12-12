@@ -1,5 +1,6 @@
 from lxml import etree
 from conftest import connect, _get_test_with_defaults_and_filter
+from test_edit_config import _edit_config_test
 
 
 def test_with_defaults_explicit():
@@ -221,11 +222,20 @@ def test_with_defaults_report_all_subtree():
 
 
 # Test case where a query fails returns no result and the query itself is used to fill in defaults
+# Note - because the query is used as the basis of the result tree, the normal <name>eth4</name>
+# nodes are not present in the output.
 def test_with_defaults_report_all_subtree_no_match():
     with_defaults = 'report-all'
     select = '<interfaces><interface><name>eth4</name></interface></interfaces>'
     expected = """
-<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <interfaces xmlns="http://example.com/ns/interfaces">
+    <interface>
+      <mtu>1500</mtu>
+      <status>up</status>
+    </interface>
+  </interfaces>
+</nc:data>
     """
     _get_test_with_defaults_and_filter(select, with_defaults, expected)
 
@@ -347,6 +357,83 @@ def test_with_default_report_all_get_leaf_different_depths():
           <name>banana</name>
           <type>fruit</type>
         </food>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+    """
+    _get_test_with_defaults_and_filter(select, with_defaults, expected)
+
+
+def test_with_default_report_all_on_empty_branch():
+    del_payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings xc:operation="delete" />
+  </test>
+</config>
+"""
+    xml = _edit_config_test(del_payload, post_xpath='/test/settings')
+    print(etree.tostring(xml, pretty_print=True, encoding="unicode"))
+    assert etree.XPath("//text()")(xml) == []
+    with_defaults = 'report-all'
+    select = '<test></test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <settings>
+      <debug>disable</debug>
+      <enable>false</enable>
+      <readonly>yes</readonly>
+      <time>
+        <active>false</active>
+      </time>
+    </settings>
+    <state>
+      <counter>42</counter>
+      <uptime>
+        <days>5</days>
+        <hours>50</hours>
+        <minutes>30</minutes>
+        <seconds>20</seconds>
+      </uptime>
+    </state>
+    <animals>
+      <animal>
+        <name>cat</name>
+        <type>big</type>
+      </animal>
+      <animal>
+        <name>dog</name>
+        <type>big</type>
+        <colour>brown</colour>
+      </animal>
+      <animal>
+        <name>hamster</name>
+        <type>little</type>
+        <food>
+          <name>banana</name>
+          <type>fruit</type>
+        </food>
+        <food>
+          <name>nuts</name>
+          <type>kibble</type>
+        </food>
+      </animal>
+      <animal>
+        <name>mouse</name>
+        <type>little</type>
+        <colour>grey</colour>
+      </animal>
+      <animal>
+        <name>parrot</name>
+        <type>big</type>
+        <colour>blue</colour>
+        <toys>
+          <toy>puzzles</toy>
+          <toy>rings</toy>
+        </toys>
       </animal>
     </animals>
   </test>

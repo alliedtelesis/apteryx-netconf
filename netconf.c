@@ -1414,11 +1414,10 @@ get_query_schema (struct netconf_session *session, xmlNode *rpc, GNode *query, s
         qnode = g_node_first_child (qnode);
     }
 
-    while (qnode->children)
+    while (qnode->children && qnode->children->data)
         qnode = qnode->children;
 
-    if (qdepth && qnode && !g_node_first_child (qnode) &&
-            g_strcmp0 (APTERYX_NAME (qnode), "*") == 0)
+    if (qdepth && qnode && g_strcmp0 (APTERYX_NAME (qnode), "*") == 0)
         qdepth--;
 
     /* Without a query we may need to add a wildcard to get everything from here down */
