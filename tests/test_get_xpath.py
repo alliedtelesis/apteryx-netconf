@@ -302,6 +302,15 @@ def test_get_xpath_simple_star():
     _get_test_with_filter(xpath, expected, f_type='xpath')
 
 
+# expect no data - the star is only a wildcard for one tree level
+def test_get_xpath_simple_invalid_star():
+    xpath = ("/test/*/name")
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
 def test_get_xpath_multi_layers_double_slash():
     xpath = ("/test/animals//name")
     expected = """
@@ -3762,6 +3771,14 @@ def test_get_xpath_operators_o10():
     _get_test_with_filter(xpath, expected, f_type='xpath')
 
 
+# Nothing matches this query so not expecting and data
+def test_get_xpath_operators_o11():
+    xpath = '/alpha:alphabet//*[pre >= 13 and post > 99]'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"/>    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
 # Functions
 def test_get_xpath_functions_f1():
     # F1 //*[contains(.,"plentiful")]
@@ -5749,5 +5766,107 @@ def test_get_xpath_list_select_one_parameter_translate():
         </xlat-animals>
     </xlat-test>
 </nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_relative_path():
+    xpath = "/test/animals/animal[name='cat']/type/."
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <test xmlns="http://test.com/ns/yang/testing">
+        <animals>
+            <animal>
+                <name>cat</name>
+                <type>big</type>
+            </animal>
+        </animals>
+    </test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_slash_slash_ns():
+    xpath = ("//mtu")
+    nspace = 'xmlns:exam="http://example.com/ns/interfaces"'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <interfaces xmlns="http://example.com/ns/interfaces">
+    <interface>
+      <name>eth0</name>
+      <mtu>8192</mtu>
+    </interface>
+    <interface>
+      <name>eth2</name>
+      <mtu>9000</mtu>
+    </interface>
+    <interface>
+      <name>eth3</name>
+      <mtu>1500</mtu>
+    </interface>
+  </interfaces>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_ns=nspace, f_type='xpath')
+
+
+# This query will return no data and not crash
+def test_get_xpath_slash_star_ns():
+    xpath = ("/*/mtu")
+    nspace = 'xmlns:exam="http://example.com/ns/interfaces"'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    _get_test_with_filter(xpath, expected, f_ns=nspace, f_type='xpath')
+
+
+def test_get_xpath_node_wildcard():
+    xpath = '/test/animals/node()/name'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>cat</name>
+      </animal>
+      <animal>
+        <name>dog</name>
+      </animal>
+      <animal>
+        <name>hamster</name>
+      </animal>
+      <animal>
+        <name>mouse</name>
+      </animal>
+      <animal>
+        <name>parrot</name>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_node_wildcard_2():
+    xpath = "/test/animals/animal[name='hamster']/node()/name"
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>hamster</name>
+        <food>
+          <name>banana</name>
+        </food>
+        <food>
+          <name>nuts</name>
+        </food>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+
     """
     _get_test_with_filter(xpath, expected, f_type='xpath')

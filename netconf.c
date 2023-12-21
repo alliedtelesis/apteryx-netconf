@@ -1032,7 +1032,7 @@ xpath_set_namespace (char *path, char **ns_href, char **ns_prefix, xmlDoc *doc,
     char *next;
     char *top_node;
 
-    if (!*ns_href || !*ns_prefix)
+    if (path && strlen (path) > 1 && (!*ns_href || !*ns_prefix))
     {
         if (xml->ns)
         {
@@ -1079,7 +1079,6 @@ xpath_set_namespace (char *path, char **ns_href, char **ns_prefix, xmlDoc *doc,
                     /* If we don't have a prefix yet, try the path */
                     if (!*ns_prefix)
                     {
-                        char *path = path;
                         char *colon;
 
                         colon = strchr (path + 1, ':');
@@ -1224,12 +1223,22 @@ static char *
 find_first_non_path(char *path)
 {
     char *ptr = path;
+    char *sub;
     bool slash = false;
     int len = strlen (path);
     int i;
+
+    sub = strstr (path, "//");
+    if (sub && sub != path)
+        return sub;
+
+    sub = strstr (path, "/node(");
+    if (sub)
+        return sub;
+
     for (i = 0; i < len; i++)
     {
-        if (*ptr == '*' || *ptr == '[' || *ptr == '@')
+        if (*ptr == '*' || *ptr == '[' || *ptr == '@' || *ptr == '.')
         {
             if (slash)
                 ptr--;
@@ -1254,6 +1263,7 @@ static xpath_type
 prepare_xpath_query_path (char *path, char *schema_path, char **sch_path)
 {
     char *non_path = NULL;
+    char *ptr;
     int len;
 
     *sch_path = NULL;
@@ -1269,23 +1279,30 @@ prepare_xpath_query_path (char *path, char *schema_path, char **sch_path)
     }
 
     /* Check for // syntax */
-    if (path[1] == '/')
+    if (path[1] == '/' || path[1] == '*')
     {
         if (schema_path)
         {
-            *sch_path = g_strdup ((char *) schema_path);
+            *sch_path = g_strdup_printf ("/%s", (char *) schema_path);
             return XPATH_EVALUATE;
         }
         /* Trying to do a // query but we have no namespace. This will not work */
         return XPATH_ERROR;
     }
-    non_path = find_first_non_path (path);
+
+    ptr = strchr (path + 1, '/');
+    if (ptr && schema_path && strstr (path, schema_path) != path)
+        *sch_path = g_strdup_printf ("/%s%s", schema_path, ptr);
+    else
+        *sch_path = g_strdup (path);
+
+    non_path = find_first_non_path (*sch_path);
     if (non_path)
     {
-        *sch_path = g_strndup (path, non_path - path);
+        *non_path = '\0';
         return XPATH_EVALUATE;
     }
-    *sch_path = g_strdup (path);
+
     return XPATH_SIMPLE;
 }
 
@@ -1300,7 +1317,7 @@ check_namespace_set (xmlNode *node, char **ns_href, char **ns_prefix)
     {
         sch_node *s_node = sch_node_by_namespace (g_schema, (char *) ns->href, (char *) ns->prefix);
         if (s_node)
-            path = sch_path (s_node);
+            path = sch_name (s_node);
         else
             path = NULL;
 
@@ -1335,9 +1352,9 @@ static bool
 get_query_to_xml (struct netconf_session *session, xmlNode *rpc, GNode *query,
                   int rdepth, char *path, char **ns_href, char **ns_prefix,
                   xpath_type x_type, void *xlat_data, int schflags, bool is_subtree,
-                  GList **xml_list)
+                  bool is_filter, GList **xml_list)
 {
-    GNode *tree;
+    GNode *tree = NULL;
     xmlNode *xml = NULL;
 
     /* Query database */
@@ -1357,7 +1374,7 @@ get_query_to_xml (struct netconf_session *session, xmlNode *rpc, GNode *query,
         else
             tree = apteryx_query (query);
     }
-    else
+    else if (!is_filter)
         tree = get_full_tree ();
 
     if (schflags & SCH_F_ADD_DEFAULTS)
@@ -1414,14 +1431,15 @@ get_query_schema (struct netconf_session *session, xmlNode *rpc, GNode *query, s
         qnode = g_node_first_child (qnode);
     }
 
-    while (qnode->children && qnode->children->data)
+    while (qnode && qnode->children && qnode->children->data)
         qnode = qnode->children;
 
     if (qdepth && qnode && g_strcmp0 (APTERYX_NAME (qnode), "*") == 0)
         qdepth--;
 
     /* Without a query we may need to add a wildcard to get everything from here down */
-    if (is_filter && qdepth == g_node_max_height (query) && !(schflags & SCH_F_DEPTH_ONE))
+    if (is_filter && qnode && qdepth == g_node_max_height (query) &&
+        !(schflags & SCH_F_DEPTH_ONE))
     {
         if (qschema && sch_node_child_first (qschema) && !(schflags & SCH_F_STRIP_DATA))
         {
@@ -1435,7 +1453,7 @@ get_query_schema (struct netconf_session *session, xmlNode *rpc, GNode *query, s
     }
 
     return get_query_to_xml (session, rpc, query, qdepth, path, ns_href,
-                             ns_prefix, x_type, xlat_data, schflags, is_subtree, xml_list);
+                             ns_prefix, x_type, xlat_data, schflags, is_subtree, true, xml_list);
 }
 
 static void
@@ -1529,6 +1547,13 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                     ns_href = NULL;
                 }
                 schema_path = check_namespace_set (node, &ns_href, &ns_prefix);
+                if (!ns_href)
+                {
+                    /* Check the get node for a default namespace */
+                    xmlNode *get = xmlFirstElementChild (rpc);
+                    schema_path = check_namespace_set (get, &ns_href, &ns_prefix);
+                }
+
                 x_type = prepare_xpath_query_path (path, schema_path, &sch_path);
                 g_free (schema_path);
                 if (x_type != XPATH_ERROR)
@@ -1568,7 +1593,7 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                 else if (!query && x_type == XPATH_EVALUATE)
                 {
                     if (!get_query_to_xml (session, rpc, query, 0, path, &ns_href,
-                                           &ns_prefix, x_type, xlat_data, schflags, false, xml_list))
+                                           &ns_prefix, x_type, xlat_data, schflags, false, true, xml_list))
                     {
                         cleanup_on_xpath_error (session, attr, split, ns_href, ns_prefix);
                         return -1;
@@ -1738,7 +1763,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
     if (!xml_list)
     {
         if (!get_query_to_xml (session, rpc, NULL, 0, NULL, NULL, NULL,
-                               XPATH_NONE, NULL, schflags, false, &xml_list))
+                               XPATH_NONE, NULL, schflags, false, false, &xml_list))
         {
             session->counters.in_bad_rpcs++;
             netconf_global_stats.session_totals.in_bad_rpcs++;
