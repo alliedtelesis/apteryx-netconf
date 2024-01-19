@@ -1003,17 +1003,80 @@ prepare_xpath_eval_path (char *path, char *ns_prefix)
 {
     char *xpath;
     char *new_path = NULL;
+    char *colon;
 
     if (path[0] == '/')
     {
         if (strlen (path) > 1 && path[1] != '/')
         {
-            char *colon;
             colon = strchr (path + 1, ':');
             if (!colon && ns_prefix)
             {
                 new_path = g_strdup_printf ("/%s:%s", ns_prefix, path + 1);
                 path = new_path;
+            }
+            else if (colon)
+            {
+                /* Remove redundant namespace directives in each of the child nodes */
+                gchar **split = g_strsplit (path, "/", -1);
+                int count = g_strv_length (split);
+                int i;
+                char *prefix = NULL;
+                char *n_prefix = NULL;
+                bool change = false;
+
+                for (i = 0; i < count; i++)
+                {
+                    if (i == 1)
+                    {
+                        colon = strchr (split[i], ':');
+                        if (!colon)
+                            break;
+                        prefix = g_strndup (split[i], colon - split[i]);
+                        if (!prefix)
+                            break;
+                    }
+                    else
+                    {
+                        colon = strchr (split[i], ':');
+                        if (!colon)
+                            continue;
+
+                        /* Check for XPATH keyword operators */
+                        if (strlen (colon) > 1 && *(colon + 1) == ':')
+                            continue;
+
+                        n_prefix = g_strndup (split[i], colon - split[i]);
+                        if (!n_prefix)
+                            continue;
+
+                        if (g_strcmp0 (prefix, n_prefix) == 0 && strlen (colon) > 1)
+                        {
+                            char *tmp = split[i];
+                            split[i] = g_strdup (colon + 1);
+                            g_free (tmp);
+                            change = true;
+                        }
+                        else
+                        {
+                            /* Shifting to a new namespace via augmentation */
+                            g_free (prefix);
+                            prefix = n_prefix;
+                            n_prefix = NULL;
+                        }
+                    }
+                }
+
+                g_free (prefix);
+                g_free (n_prefix);
+
+                if (change)
+                {
+                    g_free (new_path);
+                    new_path = g_strjoinv ("/", split);
+                    path = new_path;
+                }
+                g_strfreev(split);
             }
         }
     }
@@ -1470,7 +1533,7 @@ cleanup_on_xpath_error (struct netconf_session *session, char *attr, gchar **spl
 
 static int
 get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node,
-                    int schflags, GList **xml_list, bool *ret)
+                    int schflags, GList **xml_list, bool *filter_seen, bool *ret)
 {
     char *attr;
     xmlNode *tnode;
@@ -1501,6 +1564,7 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
     /* Parse any filters */
     else if (g_strcmp0 ((char *) node->name, "filter") == 0)
     {
+        *filter_seen = true;
         attr = (char *) xmlGetProp (node, BAD_CAST "type");
 
         /* Default type is "subtree" */
@@ -1690,6 +1754,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
     GList *xml_list = NULL;
     GList *list;
     int schflags = 0;
+    bool filter_seen = false;
     bool ret = false;
 
     if (apteryx_netconf_verbose)
@@ -1746,7 +1811,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
         if (g_strcmp0 ((char *) node->name, "with-defaults") == 0)
             continue;
 
-        if (get_process_action (session, rpc, node, schflags, &xml_list, &ret) < 0)
+        if (get_process_action (session, rpc, node, schflags, &xml_list, &filter_seen, &ret) < 0)
         {
             /* Cleanup any requests added to the xml_list before hitting an error */
             for (list = g_list_first (xml_list); list; list = g_list_next (list))
@@ -1760,7 +1825,7 @@ handle_get (struct netconf_session *session, xmlNode * rpc, gboolean config_only
     }
 
     /* Catch for get without filter */
-    if (!xml_list)
+    if (!filter_seen && !xml_list)
     {
         if (!get_query_to_xml (session, rpc, NULL, 0, NULL, NULL, NULL,
                                XPATH_NONE, NULL, schflags, false, false, &xml_list))
