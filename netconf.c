@@ -1283,7 +1283,48 @@ xpath_evaluate (struct netconf_session *session, xmlNode *rpc, char *path, char 
 }
 
 static char *
-find_first_non_path(char *path)
+process_relative_path (char *path, char *ptr)
+{
+    char *pt;
+    char *sub;
+    char *old_sub = NULL;
+    int count = 0;
+    int i;
+
+    pt = path;
+    while ((sub = strstr (pt, "/..")))
+    {
+        if (!old_sub || old_sub + 3 == sub)
+        {
+            count++;
+            old_sub = sub;
+            pt = sub + 3;
+        }
+        else
+            break;
+    }
+
+    pt = ptr - 2;
+    for (i = 0; i < count; i++)
+    {
+        while (pt > path && *pt != '/')
+            pt--;
+
+        if (i < count - 1 && pt > path && *pt == '/')
+            pt--;
+    }
+
+    if (i == count && pt > path && *pt == '/')
+    {
+        return pt;
+    }
+
+    ptr--;
+    return ptr;
+}
+
+static char *
+find_first_non_path (char *path)
 {
     char *ptr = path;
     char *sub;
@@ -1303,6 +1344,10 @@ find_first_non_path(char *path)
     {
         if (*ptr == '*' || *ptr == '[' || *ptr == '@' || *ptr == '.')
         {
+            /* Handle relative path /.. */
+            if (slash && *ptr == '.' && *(ptr + 1) == '.')
+                return process_relative_path (path, ptr);
+
             if (slash)
                 ptr--;
 

@@ -5787,6 +5787,143 @@ def test_get_xpath_relative_path():
     _get_test_with_filter(xpath, expected, f_type='xpath')
 
 
+def test_get_xpath_relative_path_dot_dot():
+    xpath = "/test/animals/animal[name='hamster']/type/.."
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>hamster</name>
+        <type>little</type>
+        <food>
+          <name>banana</name>
+          <type>fruit</type>
+        </food>
+        <food>
+          <name>nuts</name>
+          <type>kibble</type>
+        </food>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_relative_path_dot_dot_root():
+    xpath = "/.."
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_relative_path_dot_dot_field():
+    xpath = "/test/animals/animal[name='hamster']/type/../food"
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>hamster</name>
+        <food>
+          <name>banana</name>
+          <type>fruit</type>
+        </food>
+        <food>
+          <name>nuts</name>
+          <type>kibble</type>
+        </food>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_relative_path_dot_dot_field_dot_dot():
+    xpath = "/test/animals/animal[name='hamster']/type/../food/.."
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>hamster</name>
+        <type>little</type>
+        <food>
+          <name>banana</name>
+          <type>fruit</type>
+        </food>
+        <food>
+          <name>nuts</name>
+          <type>kibble</type>
+        </food>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_relative_path_dot_dot_dot_dot():
+    xpath = "/test/animals/animal[name='cat']/type/../.."
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>cat</name>
+        <type>big</type>
+      </animal>
+      <animal>
+        <name>dog</name>
+        <colour>brown</colour>
+      </animal>
+      <animal>
+        <name>hamster</name>
+        <type>little</type>
+        <food>
+          <name>banana</name>
+          <type>fruit</type>
+        </food>
+        <food>
+          <name>nuts</name>
+          <type>kibble</type>
+        </food>
+      </animal>
+      <animal>
+        <name>mouse</name>
+        <type>little</type>
+        <colour>grey</colour>
+      </animal>
+      <animal>
+        <name>parrot</name>
+        <type>big</type>
+        <colour>blue</colour>
+        <toys>
+          <toy>puzzles</toy>
+          <toy>rings</toy>
+        </toys>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_relative_path_dot_dot_dot_dot_dot_dot():
+    xpath = "/test/animals/animal/../../.."
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
 def test_get_xpath_slash_slash_ns():
     xpath = ("//mtu")
     nspace = 'xmlns:exam="http://example.com/ns/interfaces"'
