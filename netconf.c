@@ -863,6 +863,17 @@ get_full_tree ()
     return tree;
 }
 
+static gboolean
+remove_null_data (GNode *node, gpointer data)
+{
+    if (node->data == NULL)
+    {
+        g_node_unlink (node);
+        g_node_destroy (node);
+    }
+    return false;
+}
+
 static void
 cleanup_empty_branches (xmlNode *node, int depth, int max_depth, bool *root_deleted)
 {
@@ -1456,6 +1467,68 @@ check_namespace_set (xmlNode *node, char **ns_href, char **ns_prefix)
     return schema_path;
 }
 
+static gpointer
+copy_node_data (gconstpointer src, gpointer dummy)
+{
+    char *data = g_strdup (src);
+
+    return data;
+}
+
+static void
+_merge_gnode_nodes (GNode *node1, GNode *node2)
+{
+    GNode *child1;
+    GNode *child2;
+    GNode *copy;
+
+    for (child1 = node1->children; child1; child1 = child1->next)
+    {
+        /* Match child1 to a child of node2. If matched descend down the tree. */
+        for (child2 = node2->children; child2; child2 = child2->next)
+        {
+            if (g_strcmp0 (APTERYX_NAME (child2), "*") != 0 &&
+                g_strcmp0 (APTERYX_NAME (child1), APTERYX_NAME (child2)) == 0)
+            {
+                _merge_gnode_nodes (child1, child2);
+                break;
+            }
+        }
+    }
+
+    for (child2 = node2->children; child2; child2 = child2->next)
+    {
+        if (g_strcmp0 (APTERYX_NAME (child2), "*") == 0)
+            continue;
+
+        /* Match child2 to a child of node1. If not matched add the child2 tree
+         * to the parent node1. */
+        for (child1 = node1->children; child1; child1 = child1->next)
+        {
+            if (g_strcmp0 (APTERYX_NAME (child1), APTERYX_NAME (child2)) == 0)
+                break;
+        }
+
+        if (!child1)
+        {
+            copy = g_node_copy_deep (child2, copy_node_data, NULL);
+            g_node_append (node1, copy);
+        }
+    }
+}
+
+/* Merge tree2 into tree1. This is done by copying any part of the tree2 that is not in
+ * tree1 into tree1. Tree2 is deleted at the end of the merge. */
+static void
+merge_gnode_trees (GNode *tree1, GNode *tree2)
+{
+    if (tree1 && tree2)
+    {
+        _merge_gnode_nodes (tree1, tree2);
+        apteryx_free_tree (tree2);
+    }
+}
+
 static bool
 get_query_to_xml (struct netconf_session *session, xmlNode *rpc, GNode *query,
                   int rdepth, char *path, char **ns_href, char **ns_prefix,
@@ -1463,6 +1536,7 @@ get_query_to_xml (struct netconf_session *session, xmlNode *rpc, GNode *query,
                   bool is_filter, GList **xml_list)
 {
     GNode *tree = NULL;
+    GNode *query_defaults = NULL;
     xmlNode *xml = NULL;
 
     /* Query database */
@@ -1488,11 +1562,21 @@ get_query_to_xml (struct netconf_session *session, xmlNode *rpc, GNode *query,
     if (schflags & SCH_F_ADD_DEFAULTS)
     {
         if (tree)
+        {
             sch_traverse_tree (g_schema, NULL, tree, schflags | SCH_F_FILTER_RDEPTH, rdepth);
+            query_defaults = query;
+            g_node_traverse (query_defaults, G_IN_ORDER, G_TRAVERSE_LEAVES, -1, remove_null_data, NULL);
+            query = NULL;
+            sch_traverse_tree (g_schema, NULL, query_defaults, schflags | SCH_F_FILTER_RDEPTH, rdepth);
+
+            /* Merge the results of the search result tree with defaults and the query with defaults */
+            merge_gnode_trees (tree, query_defaults);
+        }
         else
         {
             /* Nothing in the database, but we may have defaults! */
             tree = query;
+            g_node_traverse (tree, G_IN_ORDER, G_TRAVERSE_LEAVES, -1, remove_null_data, NULL);
             query = NULL;
             sch_traverse_tree (g_schema, NULL, tree, schflags | SCH_F_FILTER_RDEPTH, rdepth);
         }
