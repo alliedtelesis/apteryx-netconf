@@ -938,6 +938,7 @@ _xpath_mark_list_nodes (sch_node *schema, xmlNode *node, int flags, int depth, G
     sch_node *child;
     const char *target_name;
     char *name;
+    char *colon;
     bool rc = true;
 
     for (xmlNode *cur_node = node; cur_node; cur_node = cur_node->next)
@@ -948,6 +949,17 @@ _xpath_mark_list_nodes (sch_node *schema, xmlNode *node, int flags, int depth, G
             for (s_node = schema; s_node; s_node = sch_node_next_sibling (s_node))
             {
                 name = sch_name (s_node);
+                if (depth == 0)
+                {
+                    colon = strchr (name, ':');
+                    if (colon)
+                    {
+                        char *tmp = name;
+                        name = g_strdup (colon + 1);
+                        g_free (tmp);
+                    }
+                }
+
                 if (g_strcmp0 (name, target_name) == 0)
                 {
                     g_free (name);
