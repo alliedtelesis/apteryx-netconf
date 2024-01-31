@@ -725,10 +725,16 @@ def test_get_subtree_list_container_translate():
       <xlat-animal>
         <name>cat</name>
         <type>fast</type>
+        <food>
+          <pet>cat</pet>
+        </food>
       </xlat-animal>
       <xlat-animal>
         <name>dog</name>
         <colour>brown</colour>
+        <food>
+          <pet>dog</pet>
+        </food>
       </xlat-animal>
       <xlat-animal>
         <name>hamster</name>
@@ -741,16 +747,25 @@ def test_get_subtree_list_container_translate():
           <name>nuts</name>
           <type>kibble</type>
         </food>
+        <food>
+          <pet>hamster</pet>
+        </food>
       </xlat-animal>
       <xlat-animal>
         <name>mouse</name>
         <type>slow</type>
         <colour>grey</colour>
+        <food>
+          <pet>mouse</pet>
+        </food>
       </xlat-animal>
       <xlat-animal>
         <name>parrot</name>
         <type>fast</type>
         <colour>blue</colour>
+        <food>
+          <pet>parrot</pet>
+        </food>
         <toys>
           <toy>puzzles</toy>
           <toy>rings</toy>
@@ -772,10 +787,16 @@ def test_get_subtree_list_element_translate():
       <xlat-animal>
         <name>cat</name>
         <type>fast</type>
+        <food>
+          <pet>cat</pet>
+        </food>
       </xlat-animal>
       <xlat-animal>
         <name>dog</name>
         <colour>brown</colour>
+        <food>
+          <pet>dog</pet>
+        </food>
       </xlat-animal>
       <xlat-animal>
         <name>hamster</name>
@@ -788,16 +809,25 @@ def test_get_subtree_list_element_translate():
           <name>nuts</name>
           <type>kibble</type>
         </food>
+        <food>
+          <pet>hamster</pet>
+        </food>
       </xlat-animal>
       <xlat-animal>
         <name>mouse</name>
         <type>slow</type>
         <colour>grey</colour>
+        <food>
+          <pet>mouse</pet>
+        </food>
       </xlat-animal>
       <xlat-animal>
         <name>parrot</name>
         <type>fast</type>
         <colour>blue</colour>
+        <food>
+          <pet>parrot</pet>
+        </food>
         <toys>
           <toy>puzzles</toy>
           <toy>rings</toy>
@@ -855,6 +885,41 @@ def test_get_subtree_list_parameter_named_translated():
     _get_test_with_filter(select, expected)
 
 
+def test_get_subtree_list_parameter_named_name_translated():
+    select = '<xlat-test><xlat-animals><xlat-animal><name>cat</name><name/></xlat-animal></xlat-animals></xlat-test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+    <xlat-animals>
+      <xlat-animal>
+        <name>cat</name>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(select, expected)
+
+
+def test_get_subtree_list_parameter_named_food_translated():
+    select = '<xlat-test><xlat-animals><xlat-animal><name>cat</name><food><pet/></food></xlat-animal></xlat-animals></xlat-test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <xlat-test xmlns="http://test.com/ns/yang/xlat-testing">
+    <xlat-animals>
+      <xlat-animal>
+        <name>cat</name>
+        <food>
+          <pet>cat</pet>
+        </food>
+      </xlat-animal>
+    </xlat-animals>
+  </xlat-test>
+</nc:data>
+    """
+    _get_test_with_filter(select, expected)
+
+
 def test_get_subtree_list_parameter_named_duplicate_translated():
     select = '<xlat-test><xlat-animals><xlat-animal><name>hamster</name><food/></xlat-animal></xlat-animals></xlat-test>'
     expected = """
@@ -870,6 +935,9 @@ def test_get_subtree_list_parameter_named_duplicate_translated():
         <food>
           <name>nuts</name>
           <type>kibble</type>
+        </food>
+        <food>
+          <pet>hamster</pet>
         </food>
       </xlat-animal>
     </xlat-animals>
