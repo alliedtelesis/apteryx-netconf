@@ -1350,18 +1350,9 @@ static char *
 find_first_non_path (char *path)
 {
     char *ptr = path;
-    char *sub;
     bool slash = false;
     int len = strlen (path);
     int i;
-
-    sub = strstr (path, "//");
-    if (sub && sub != path)
-        return sub;
-
-    sub = strstr (path, "/node(");
-    if (sub)
-        return sub;
 
     for (i = 0; i < len; i++)
     {
@@ -1376,10 +1367,14 @@ find_first_non_path (char *path)
 
             return ptr;
         }
+
         if (*ptr == '/')
         {
             if (slash)
                 return ptr - 1;
+
+            if (strncmp (ptr, "/node(", 6) == 0)
+                return ptr;
 
             slash = true;
         }
