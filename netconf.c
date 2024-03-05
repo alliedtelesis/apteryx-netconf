@@ -270,6 +270,17 @@ _free_error_parms (nc_error_parms error_parms)
     g_hash_table_destroy (error_parms.info);
 }
 
+static char*
+get_last_good_schema_path (char *orig_query_path, sch_node *gsch)
+{
+    char *new_query_path = NULL;
+    char *rem_path = NULL;
+    char *gsch_name = sch_name (gsch);
+    rem_path =  g_strrstr_len (orig_query_path, strlen(orig_query_path), gsch_name);
+    new_query_path = g_strndup (orig_query_path,
+                                strlen(orig_query_path) - strlen(rem_path) + strlen(gsch_name));
+    return new_query_path;
+}
 
 /* Close open sessions */
 void
@@ -1678,6 +1689,8 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
     gchar **split;
     sch_xml_to_gnode_parms parms;
     sch_node *qschema = NULL;
+    sch_node *last_good_schema = NULL;
+    gchar *valid_sch_path = NULL;
     bool is_filter = false;
     void *xlat_data = NULL;
     int i;
@@ -1757,10 +1770,26 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
 
                 x_type = prepare_xpath_query_path (path, schema_path, &sch_path);
                 g_free (schema_path);
+
                 if (x_type != XPATH_ERROR)
+                {
                     query = sch_path_to_gnode (g_schema, NULL, sch_path, schflags | SCH_F_XPATH,
-                                                &qschema);
+                                                &qschema, &last_good_schema);
+                    if (!query && (x_type == XPATH_SIMPLE && last_good_schema))
+                    {
+                        valid_sch_path = get_last_good_schema_path (sch_path, last_good_schema);
+                        if (valid_sch_path)
+                        {
+                            x_type = XPATH_EVALUATE;
+                            query = sch_path_to_gnode (g_schema, NULL, valid_sch_path, schflags | SCH_F_XPATH,
+                                                        &qschema, NULL);
+                        }
+                        g_free (valid_sch_path);
+                    }
+                }
+
                 g_free (sch_path);
+
                 if (x_type == XPATH_ERROR || (!query && x_type == XPATH_SIMPLE))
                 {
                     VERBOSE ("XPATH: malformed filter\n");
