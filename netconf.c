@@ -1750,6 +1750,7 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                 xlat_data = NULL;
                 schflags |= SCH_F_XPATH;
                 xpath_type x_type;
+                last_good_schema = NULL;
                 if (ns_prefix)
                 {
                     g_free (ns_prefix);
