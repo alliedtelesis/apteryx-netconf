@@ -261,6 +261,43 @@ def test_edit_config_delete_list():
     _edit_config_test(payload, post_xpath="/test/animals", exc_str=["cat"])
 
 
+def test_edit_config_delete_leaf_list_item():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <animals>
+        <animal>
+            <name>parrot</name>
+            <toys>
+              <toy xc:operation="delete">rings</toy>
+            </toys>
+        </animal>
+    </animals>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/test/animals/animal/parrot/toys", inc_str=["puzzles"], exc_str=["rings"])
+
+
+def test_edit_config_delete_leaf_list():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <animals>
+        <animal>
+            <name>parrot</name>
+            <toys xc:operation="delete">
+            </toys>
+        </animal>
+    </animals>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/test/animals/animal/parrot", exc_str=["rings", "puzzles"])
+
+
 def test_edit_config_merge_delete():
     payload = """
 <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
@@ -369,6 +406,25 @@ def test_edit_config_replace_one_default():
     assert xml.find('./{*}test/{*}animals/{*}animal[name="mouse"]/{*}colour') is None
 
 
+def test_edit_config_replace_leaf_list():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <animals>
+        <animal>
+            <name>parrot</name>
+            <toys xc:operation="replace">
+              <toy>bell</toy>
+            </toys>
+        </animal>
+    </animals>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/test/animals/animal/parrot/toys", inc_str=["bell"])
+
+
 # EDIT-CONFIG (operation=create)
 #  create:  The configuration data identified by the element
 #     containing this attribute is added to the configuration if
@@ -445,6 +501,25 @@ def test_edit_config_create_list_item_field_exists():
     _edit_config_test(payload, expect_err={"tag": "data-exists", "type": "application"})
 
 
+def test_edit_config_create_leaf_list_item():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <animals>
+        <animal>
+            <name>parrot</name>
+            <toys>
+              <toy xc:operation="create">bell</toy>
+            </toys>
+        </animal>
+    </animals>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/test/animals/animal/parrot/toys", inc_str=["bell"])
+
+
 # EDIT-CONFIG (operation=remove)
 #  remove:  The configuration data identified by the element
 #     containing this attribute is deleted from the configuration
@@ -483,6 +558,25 @@ def test_edit_config_remove_missing_data():
 </config>
 """
     _edit_config_test(payload, expect_err={"tag": "malformed-message", "type": "rpc"})
+
+
+def test_edit_config_remove_leaf_list_item():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <animals>
+        <animal>
+            <name>parrot</name>
+            <toys>
+              <toy xc:operation="remove">rings</toy>
+            </toys>
+        </animal>
+    </animals>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/test/animals/animal/parrot/toys", inc_str=["puzzles"], exc_str=["rings"])
 
 
 # Empty value for nodes that have a non-empty pattern or values
