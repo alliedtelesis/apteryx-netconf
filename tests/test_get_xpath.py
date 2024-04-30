@@ -6011,3 +6011,128 @@ def test_get_xpath_node_wildcard_2():
 
     """
     _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_list_entry_leaf_node_1():
+    xpath = "/test/animals/animal[name='hamster']"
+    expected = """
+    <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <test xmlns="http://test.com/ns/yang/testing">
+        <animals>
+          <animal>
+            <name>hamster</name>
+            <type>little</type>
+            <food>
+              <name>banana</name>
+              <type>fruit</type>
+            </food>
+            <food>
+              <name>nuts</name>
+              <type>kibble</type>
+            </food>
+          </animal>
+        </animals>
+      </test>
+    </nc:data>
+
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_list_entry_leaf_node_2():
+    xpath = "/test/animals/animal/name"
+    expected = """
+    <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <test xmlns="http://test.com/ns/yang/testing">
+        <animals>
+          <animal>
+            <name>cat</name>
+          </animal>
+          <animal>
+            <name>dog</name>
+          </animal>
+          <animal>
+            <name>hamster</name>
+          </animal>
+          <animal>
+            <name>mouse</name>
+          </animal>
+          <animal>
+            <name>parrot</name>
+          </animal>
+        </animals>
+      </test>
+    </nc:data>
+
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_list_entry_leaf_node_3():
+    xpath = "/test/animals/animal/colour"
+    expected = """
+    <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <test xmlns="http://test.com/ns/yang/testing">
+        <animals>
+          <animal>
+            <name>dog</name>
+            <colour>brown</colour>
+          </animal>
+          <animal>
+            <name>mouse</name>
+            <colour>grey</colour>
+          </animal>
+          <animal>
+            <name>parrot</name>
+            <colour>blue</colour>
+          </animal>
+        </animals>
+      </test>
+    </nc:data>
+
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_list_entry_leaf_node_4():
+    xpath = "/test/animals/animal/toys"
+    expected = """
+    <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <test xmlns="http://test.com/ns/yang/testing">
+        <animals>
+          <animal>
+            <name>parrot</name>
+            <toys>
+              <toy>puzzles</toy>
+              <toy>rings</toy>
+            </toys>
+          </animal>
+        </animals>
+      </test>
+    </nc:data>
+
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_list_entry_leaf_node_5():
+    xpath = "/test/animals/animal/food/name"
+    expected = """
+    <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <test xmlns="http://test.com/ns/yang/testing">
+        <animals>
+          <animal>
+            <name>hamster</name>
+            <food>
+              <name>banana</name>
+            </food>
+            <food>
+              <name>nuts</name>
+            </food>
+          </animal>
+        </animals>
+      </test>
+    </nc:data>
+
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')

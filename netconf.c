@@ -270,7 +270,6 @@ _free_error_parms (nc_error_parms error_parms)
     g_hash_table_destroy (error_parms.info);
 }
 
-
 /* Close open sessions */
 void
 netconf_close_open_sessions (void)
@@ -1678,6 +1677,7 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
     gchar **split;
     sch_xml_to_gnode_parms parms;
     sch_node *qschema = NULL;
+    sch_node *last_good_schema = NULL;
     bool is_filter = false;
     void *xlat_data = NULL;
     int i;
@@ -1737,6 +1737,8 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
                 xlat_data = NULL;
                 schflags |= SCH_F_XPATH;
                 xpath_type x_type;
+                last_good_schema = NULL;
+
                 if (ns_prefix)
                 {
                     g_free (ns_prefix);
@@ -1757,10 +1759,17 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
 
                 x_type = prepare_xpath_query_path (path, schema_path, &sch_path);
                 g_free (schema_path);
+
                 if (x_type != XPATH_ERROR)
-                    query = sch_path_to_gnode (g_schema, NULL, sch_path, schflags | SCH_F_XPATH,
-                                                &qschema);
+                {
+                    query = sch_path_to_gnode_netconf (g_schema, NULL, sch_path, schflags | SCH_F_XPATH,
+                                                       &qschema, &last_good_schema);
+                    if (x_type == XPATH_SIMPLE && last_good_schema && query)
+                        x_type = XPATH_EVALUATE;
+
+                }
                 g_free (sch_path);
+
                 if (x_type == XPATH_ERROR || (!query && x_type == XPATH_SIMPLE))
                 {
                     VERBOSE ("XPATH: malformed filter\n");
