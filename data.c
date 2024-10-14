@@ -36,6 +36,24 @@ typedef struct _sch_xml_to_gnode_parms_s
     GList *conditions;
 } _sch_xml_to_gnode_parms;
 
+/* List keys must escape any '/' which is the only reserved
+   character in apteryx */
+static char *
+_sch_key_encode (const char *key)
+{
+    GString *encoded = g_string_new (NULL);
+    const char *c = key;
+    while (c && *c)
+    {
+        if (*c == '/')
+            g_string_append_printf (encoded, "%%%02X", *c);
+        else
+            g_string_append_c (encoded, *c);
+        c++;
+    }
+    return g_string_free (encoded, false);
+}
+
 static bool
 _sch_node_find_name (xmlNs *ns, sch_node * parent, const char *path_name, GList **path_list)
 {
@@ -664,7 +682,6 @@ _sch_xml_to_gnode (_sch_xml_to_gnode_parms *_parms, sch_node * schema, sch_ns *n
     if (sch_is_leaf_list (schema))
     {
         char *old_xpath = new_xpath;
-        char *key_value = NULL;
         sch_node *parent = schema;
 
         DEBUG ("%*s%s%s\n", depth * 2, " ", depth ? "" : "/", name);
@@ -676,11 +693,11 @@ _sch_xml_to_gnode (_sch_xml_to_gnode_parms *_parms, sch_node * schema, sch_ns *n
             if (_parms->in_is_edit)
                 sch_check_condition_parms (_parms, parent, new_xpath);
 
-            key_value = (char *) xmlNodeGetContent (xml);
-            if (_parms->in_is_edit && !sch_validate_pattern (schema, key_value))
+            char *content = (char *) xmlNodeGetContent (xml);
+            if (_parms->in_is_edit && !sch_validate_pattern (schema, content))
             {
-                DEBUG ("Invalid value \"%s\" for node \"%s\"\n", key_value, name);
-                g_free (key_value);
+                DEBUG ("Invalid value \"%s\" for node \"%s\"\n", content, name);
+                g_free (content);
                 apteryx_free_tree (tree);
                 _parms->out_error.tag = NC_ERR_TAG_INVALID_VAL;
                 _parms->out_error.type = NC_ERR_TYPE_PROTOCOL;
@@ -688,6 +705,7 @@ _sch_xml_to_gnode (_sch_xml_to_gnode_parms *_parms, sch_node * schema, sch_ns *n
                 goto exit;
             }
 
+            char *key_value = _sch_key_encode (content);
             if (g_strcmp0 (new_op, "delete") == 0 || g_strcmp0 (new_op, "remove") == 0 ||
                 g_strcmp0 (new_op, "none") == 0)
             {
@@ -697,7 +715,7 @@ _sch_xml_to_gnode (_sch_xml_to_gnode_parms *_parms, sch_node * schema, sch_ns *n
             {
                 new_xpath = g_strdup_printf ("%s/%s", old_xpath, key_value);
                 node = APTERYX_NODE (tree, g_strdup (key_value));
-                node = APTERYX_NODE (node, g_strdup (key_value));
+                node = APTERYX_NODE (node, g_strdup (content));
                 if (_parms->in_is_edit && g_strcmp0 (new_op, "merge") == 0)
                 {
                     _parms->out_merges =
@@ -705,6 +723,7 @@ _sch_xml_to_gnode (_sch_xml_to_gnode_parms *_parms, sch_node * schema, sch_ns *n
                     DEBUG ("merge <%s>\n", new_xpath);
                 }
             }
+            g_free (content);
             g_free (key_value);
             g_free (old_xpath);
             ret_tree = true;
@@ -729,7 +748,9 @@ _sch_xml_to_gnode (_sch_xml_to_gnode_parms *_parms, sch_node * schema, sch_ns *n
         attr = (char *) xmlGetProp (xml, BAD_CAST key);
         if (attr)
         {
-            node = APTERYX_NODE (node, g_strdup (attr));
+            key_value = _sch_key_encode (attr);
+            free (attr);
+            node = APTERYX_NODE (node, key_value);
             DEBUG ("%*s%s\n", depth * 2, " ", APTERYX_NAME (node));
             if (!(_parms->in_flags & SCH_F_STRIP_KEY) || xmlFirstElementChild (xml))
             {
@@ -738,23 +759,22 @@ _sch_xml_to_gnode (_sch_xml_to_gnode_parms *_parms, sch_node * schema, sch_ns *n
                 if (!_parms->in_is_edit)
                     g_node_prepend_data (_node, NULL);
             }
-            key_value = attr;
         }
         else if (xmlFirstElementChild (xml) &&
                  g_strcmp0 ((const char *) xmlFirstElementChild (xml)->name, key) == 0 &&
                  xml_node_has_content (xmlFirstElementChild (xml)))
         {
-            node =
-                APTERYX_NODE (node,
-                              (char *) xmlNodeGetContent (xmlFirstElementChild (xml)));
+            char *content = (char *) xmlNodeGetContent (xmlFirstElementChild (xml));
+            key_value = _sch_key_encode (content);
+            free (content);
+            node = APTERYX_NODE (node, key_value);
             DEBUG ("%*s%s\n", depth * 2, " ", APTERYX_NAME (node));
-            key_value = (char *) xmlNodeGetContent (xmlFirstElementChild (xml));
         }
         else
         {
-            node = APTERYX_NODE (node, g_strdup ("*"));
-            DEBUG ("%*s%s\n", depth * 2, " ", APTERYX_NAME (node));
             key_value = g_strdup ("*");
+            node = APTERYX_NODE (node, key_value);
+            DEBUG ("%*s%s\n", depth * 2, " ", APTERYX_NAME (node));
         }
 
         if (_parms->in_is_edit)
@@ -766,7 +786,6 @@ _sch_xml_to_gnode (_sch_xml_to_gnode_parms *_parms, sch_node * schema, sch_ns *n
 
         new_xpath = g_strdup_printf ("%s/%s", old_xpath, key_value);
         g_free (old_xpath);
-        g_free (key_value);
     }
     /* CONTAINER */
     else if (!sch_is_leaf (schema))

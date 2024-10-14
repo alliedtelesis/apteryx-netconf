@@ -167,6 +167,23 @@ def test_edit_config_list_key_colon():
     _edit_config_test(payload, post_xpath="/test/animals", inc_str=["frog:y"])
 
 
+def test_edit_config_list_key_slash():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <animals>
+        <animal>
+            <name>frog/y</name>
+            <type>little</type>
+        </animal>
+    </animals>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/test/animals", inc_str=["frog/y"])
+
+
 # EDIT-CONFIG (operation="delete")
 
 
@@ -274,6 +291,24 @@ def test_edit_config_delete_list():
     _edit_config_test(payload, post_xpath="/test/animals", exc_str=["cat"])
 
 
+def test_edit_config_delete_list_slash():
+    apteryx_set("/test/animals/animal/cat%2Fbell/name", "cat/bell")
+    apteryx_set("/test/animals/animal/cat%2Fbell/type", "little")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <animals>
+        <animal xc:operation="delete">
+            <name>cat/bell</name>
+        </animal>
+    </animals>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/test/animals", exc_str=["cat/bell"])
+
+
 def test_edit_config_delete_toplevel_list():
     apteryx_set("/test-list/1/index", "1")
     apteryx_set("/test-list/1/name", "cat")
@@ -305,6 +340,26 @@ def test_edit_config_delete_leaf_list_item():
 </config>
 """
     _edit_config_test(payload, post_xpath="/test/animals/animal/parrot/toys", inc_str=["puzzles"], exc_str=["rings"])
+
+
+def test_edit_config_delete_leaf_list_item_slash():
+    apteryx_set("/test/animals/animal/parrot/toys/toy/toy%2Frings", "toy/rings")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <animals>
+        <animal>
+            <name>parrot</name>
+            <toys>
+              <toy xc:operation="delete">toy/rings</toy>
+            </toys>
+        </animal>
+    </animals>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/test/animals/animal/parrot/toys", inc_str=["puzzles"], exc_str=["toy/rings"])
 
 
 def test_edit_config_delete_leaf_list():
@@ -545,6 +600,25 @@ def test_edit_config_create_leaf_list_item():
 </config>
 """
     _edit_config_test(payload, post_xpath="/test/animals/animal/parrot/toys", inc_str=["bell"])
+
+
+def test_edit_config_create_leaf_list_item_slash():
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <animals>
+        <animal>
+            <name>parrot</name>
+            <toys>
+              <toy xc:operation="create">cat/bell</toy>
+            </toys>
+        </animal>
+    </animals>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath="/test/animals/animal/parrot/toys", inc_str=["cat/bell"])
 
 
 def test_edit_config_create_toplevel_leaf_list_item():
