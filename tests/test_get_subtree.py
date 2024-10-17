@@ -1,7 +1,8 @@
 import pytest
+import apteryx
 from ncclient.xml_ import to_ele
 from lxml import etree
-from conftest import connect, _get_test_with_filter, apteryx_set, apteryx_proxy, apteryx_prune
+from conftest import connect, _get_test_with_filter
 
 
 def test_get_subtree_no_filter():
@@ -161,7 +162,7 @@ def test_get_subtree_node_ns_aug_other_prefix():
 
 
 def test_get_subtree_empty():
-    apteryx_set("/test/settings/empty", "empty")
+    apteryx.set("/test/settings/empty", "empty")
     select = '<test><settings><empty/></settings></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -262,8 +263,8 @@ def test_get_subtree_list_container():
 
 
 def test_get_subtree_toplevel_list():
-    apteryx_set("/test-list/1/index", "1")
-    apteryx_set("/test-list/1/name", "cat")
+    apteryx.set("/test-list/1/index", "1")
+    apteryx.set("/test-list/1/name", "cat")
     select = '<test-list/>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -277,8 +278,8 @@ def test_get_subtree_toplevel_list():
 
 
 def test_get_subtree_toplevel_leaflist():
-    apteryx_set("/test-leaflist/cat", "cat")
-    apteryx_set("/test-leaflist/dog", "dog")
+    apteryx.set("/test-leaflist/cat", "cat")
+    apteryx.set("/test-leaflist/dog", "dog")
     select = '<test-leaflist/>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -414,8 +415,8 @@ def test_get_subtree_select_one_node():
 
 
 def test_get_subtree_select_one_with_colon():
-    apteryx_set("/test/animals/animal/cat:ty/name", "cat:ty")
-    apteryx_set("/test/animals/animal/cat:ty/type", "1")
+    apteryx.set("/test/animals/animal/cat:ty/name", "cat:ty")
+    apteryx.set("/test/animals/animal/cat:ty/type", "1")
     select = '<test><animals><animal><name>cat:ty</name></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -770,10 +771,10 @@ def test_get_subtree_select_interface():
 
 
 def test_get_subtree_proxy_named_element():
-    apteryx_set("/logical-elements/logical-element/loop/name", "loopy")
-    apteryx_set("/logical-elements/logical-element/loop/root", "root")
-    apteryx_set("/apteryx/sockets/E18FE205",  "tcp://127.0.0.1:9999")
-    apteryx_proxy("/logical-elements/logical-element/loopy/*", "tcp://127.0.0.1:9999")
+    apteryx.set("/logical-elements/logical-element/loop/name", "loopy")
+    apteryx.set("/logical-elements/logical-element/loop/root", "root")
+    apteryx.set("/apteryx/sockets/E18FE205",  "tcp://127.0.0.1:9999")
+    apteryx.proxy("/logical-elements/logical-element/loopy/*", "tcp://127.0.0.1:9999")
     select = '<logical-elements><logical-element><name>loopy</name><test><animals><animal name="mouse"><type/></animal></animals></test></logical-element></logical-elements>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -795,8 +796,8 @@ def test_get_subtree_proxy_named_element():
 
 
 def test_get_subtree_if_feature():
-    apteryx_set("/test/animals/animal/cat/friend", "smokey")
-    apteryx_set("/test/animals/animal/cat/claws", "5")
+    apteryx.set("/test/animals/animal/cat/friend", "smokey")
+    apteryx.set("/test/animals/animal/cat/claws", "5")
     select = '<test><animals/></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -845,7 +846,7 @@ def test_get_subtree_if_feature():
 
 
 def test_get_subtree_when_derived_from():
-    apteryx_set("/test/animals/animal/cat/n-type", "big")
+    apteryx.set("/test/animals/animal/cat/n-type", "big")
     select = '<test><animals><animal><name>cat</name></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -864,8 +865,8 @@ def test_get_subtree_when_derived_from():
 
 
 def test_get_subtree_when_condition_true():
-    apteryx_set("/test/animals/animal/wombat/name", "wombat")
-    apteryx_set("/test/animals/animal/cat/claws", "5")
+    apteryx.set("/test/animals/animal/wombat/name", "wombat")
+    apteryx.set("/test/animals/animal/cat/claws", "5")
     select = '<test><animals><animal><name>cat</name></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -884,7 +885,7 @@ def test_get_subtree_when_condition_true():
 
 
 def test_get_subtree_when_condition_false():
-    apteryx_set("/test/animals/animal/cat/claws", "5")
+    apteryx.set("/test/animals/animal/cat/claws", "5")
     select = '<test><animals><animal><name>cat</name></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -902,7 +903,7 @@ def test_get_subtree_when_condition_false():
 
 
 def test_get_subtree_must_condition_true():
-    apteryx_set("/test/animals/animal/dog/friend", "ben")
+    apteryx.set("/test/animals/animal/dog/friend", "ben")
     select = '<test><animals><animal><name>dog</name></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -921,8 +922,8 @@ def test_get_subtree_must_condition_true():
 
 
 def test_get_subtree_must_condition_false():
-    apteryx_set("/test/animals/animal/dog/friend", "ben")
-    apteryx_prune("/test/animals/animal/cat")
+    apteryx.set("/test/animals/animal/dog/friend", "ben")
+    apteryx.prune("/test/animals/animal/cat")
     select = '<test><animals><animal><name>dog</name></animal></animals></test>'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">

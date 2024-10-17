@@ -1,4 +1,5 @@
-from conftest import _get_test_with_filter, apteryx_set, apteryx_proxy, apteryx_prune, _get_test_with_filter_expect_error
+import apteryx
+from conftest import _get_test_with_filter, _get_test_with_filter_expect_error
 
 
 # GET XPATH
@@ -243,12 +244,12 @@ def test_get_xpath_list_trunk():
 
 
 def test_get_xpath_toplevel_list_all():
-    apteryx_set("/test-list/1/index", "1")
-    apteryx_set("/test-list/1/name", "cat")
-    apteryx_set("/test-list/3/index", "3")
-    apteryx_set("/test-list/3/name", "mouse")
-    apteryx_set("/test-list/2/index", "2")
-    apteryx_set("/test-list/2/name", "dog")
+    apteryx.set("/test-list/1/index", "1")
+    apteryx.set("/test-list/1/name", "cat")
+    apteryx.set("/test-list/3/index", "3")
+    apteryx.set("/test-list/3/name", "mouse")
+    apteryx.set("/test-list/2/index", "2")
+    apteryx.set("/test-list/2/name", "dog")
     xpath = '/test-list'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -270,9 +271,9 @@ def test_get_xpath_toplevel_list_all():
 
 
 def test_get_xpath_toplevel_leaflist():
-    apteryx_set("/test-leaflist/cat", "cat")
-    apteryx_set("/test-leaflist/mouse", "mouse")
-    apteryx_set("/test-leaflist/dog", "dog")
+    apteryx.set("/test-leaflist/cat", "cat")
+    apteryx.set("/test-leaflist/mouse", "mouse")
+    apteryx.set("/test-leaflist/dog", "dog")
     xpath = '/test-leaflist'
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -302,10 +303,10 @@ def test_get_xpath_list_select_one_trunk():
 
 
 def test_get_xpath_toplevel_list_select_one():
-    apteryx_set("/test-list/1/index", "1")
-    apteryx_set("/test-list/1/name", "cat")
-    apteryx_set("/test-list/2/index", "2")
-    apteryx_set("/test-list/2/name", "dog")
+    apteryx.set("/test-list/1/index", "1")
+    apteryx.set("/test-list/1/name", "cat")
+    apteryx.set("/test-list/2/index", "2")
+    apteryx.set("/test-list/2/name", "dog")
     xpath = "/test-list[index='2']"
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -6281,10 +6282,11 @@ def test_get_xpath_list_entry_leaf_node_5():
 
 
 def test_get_xpath_proxy_list_select_one_trunk():
-    apteryx_set("/logical-elements/logical-element/loop/name", "loopy")
-    apteryx_set("/logical-elements/logical-element/loop/root", "root")
-    apteryx_set("/apteryx/sockets/E18FE205",  "tcp://127.0.0.1:9999")
-    apteryx_proxy("/logical-elements/logical-element/loopy/*", "tcp://127.0.0.1:9999")
+    apteryx.set("/logical-elements/logical-element/loop/name", "loopy")
+    apteryx.set("/logical-elements/logical-element/loop/root", "root")
+    apteryx.set("/apteryx/sockets/E18FE205", "tcp://127.0.0.1:9999")
+#     apteryx.proxy("/logical-elements/logical-element/loopy/*", "tcp://127.0.0.1:9999")
+    apteryx.proxy("/logical-elements/logical-element/loopy/*", "tcp://127.0.0.1:9999")
     xpath = "/logical-elements/logical-element[name='loopy']/test/animals/animal[name='cat']"
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -6307,7 +6309,7 @@ def test_get_xpath_proxy_list_select_one_trunk():
 
 
 def test_get_xpath_when_derived_from():
-    apteryx_set("/test/animals/animal/cat/n-type", "big")
+    apteryx.set("/test/animals/animal/cat/n-type", "big")
     xpath = "/test/animals/animal[name='cat']"
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -6326,8 +6328,8 @@ def test_get_xpath_when_derived_from():
 
 
 def test_get_xpath_when_condition_true():
-    apteryx_set("/test/animals/animal/wombat/name", "wombat")
-    apteryx_set("/test/animals/animal/cat/claws", "5")
+    apteryx.set("/test/animals/animal/wombat/name", "wombat")
+    apteryx.set("/test/animals/animal/cat/claws", "5")
     xpath = "/test/animals/animal[name='cat']"
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -6346,7 +6348,7 @@ def test_get_xpath_when_condition_true():
 
 
 def test_get_xpath_when_condition_false():
-    apteryx_set("/test/animals/animal/cat/claws", "5")
+    apteryx.set("/test/animals/animal/cat/claws", "5")
     xpath = "/test/animals/animal[name='cat']"
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -6364,7 +6366,7 @@ def test_get_xpath_when_condition_false():
 
 
 def test_get_xpath_must_condition_true():
-    apteryx_set("/test/animals/animal/dog/friend", "ben")
+    apteryx.set("/test/animals/animal/dog/friend", "ben")
     xpath = "/test/animals/animal[name='dog']"
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -6383,8 +6385,8 @@ def test_get_xpath_must_condition_true():
 
 
 def test_get_xpath_must_condition_false():
-    apteryx_set("/test/animals/animal/dog/friend", "ben")
-    apteryx_prune("/test/animals/animal/cat")
+    apteryx.set("/test/animals/animal/dog/friend", "ben")
+    apteryx.prune("/test/animals/animal/cat")
     xpath = "/test/animals/animal[name='dog']"
     expected = """
 <nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">

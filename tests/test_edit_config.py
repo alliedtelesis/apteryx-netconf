@@ -1,7 +1,8 @@
 import pytest
 from ncclient.operations import RPCError
 from lxml import etree
-from conftest import connect, apteryx_set, apteryx_proxy
+import apteryx
+from conftest import connect
 
 # EDIT-CONFIG
 
@@ -292,8 +293,8 @@ def test_edit_config_delete_list():
 
 
 def test_edit_config_delete_list_slash():
-    apteryx_set("/test/animals/animal/cat%2Fbell/name", "cat/bell")
-    apteryx_set("/test/animals/animal/cat%2Fbell/type", "little")
+    apteryx.set("/test/animals/animal/cat%2Fbell/name", "cat/bell")
+    apteryx.set("/test/animals/animal/cat%2Fbell/type", "little")
     payload = """
 <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
         xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -310,8 +311,8 @@ def test_edit_config_delete_list_slash():
 
 
 def test_edit_config_delete_toplevel_list():
-    apteryx_set("/test-list/1/index", "1")
-    apteryx_set("/test-list/1/name", "cat")
+    apteryx.set("/test-list/1/index", "1")
+    apteryx.set("/test-list/1/name", "cat")
     payload = """
 <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
         xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -343,7 +344,7 @@ def test_edit_config_delete_leaf_list_item():
 
 
 def test_edit_config_delete_leaf_list_item_slash():
-    apteryx_set("/test/animals/animal/parrot/toys/toy/toy%2Frings", "toy/rings")
+    apteryx.set("/test/animals/animal/parrot/toys/toy/toy%2Frings", "toy/rings")
     payload = """
 <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
         xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -691,7 +692,7 @@ def test_edit_config_remove_leaf_list_item():
 
 
 def test_edit_config_remove_toplevel_leaf_list_item():
-    apteryx_set("/test-leaflist/cat", "cat")
+    apteryx.set("/test-leaflist/cat", "cat")
     payload = """
 <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
         xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -748,10 +749,10 @@ def test_edit_config_empty_delete():
 
 
 def test_edit_config_proxy_named_element():
-    apteryx_set("/logical-elements/logical-element/loop/name", "loopy")
-    apteryx_set("/logical-elements/logical-element/loop/root", "root")
-    apteryx_set("/apteryx/sockets/E18FE205",  "tcp://127.0.0.1:9999")
-    apteryx_proxy("/logical-elements/logical-element/loopy/*", "tcp://127.0.0.1:9999")
+    apteryx.set("/logical-elements/logical-element/loop/name", "loopy")
+    apteryx.set("/logical-elements/logical-element/loop/root", "root")
+    apteryx.set("/apteryx/sockets/E18FE205",  "tcp://127.0.0.1:9999")
+    apteryx.proxy("/logical-elements/logical-element/loopy/*", "tcp://127.0.0.1:9999")
     payload = """
 <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
         xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -776,10 +777,10 @@ def test_edit_config_proxy_named_element():
 
 
 def test_edit_config_proxy_named_element_read_only():
-    apteryx_set("/logical-elements/logical-element-ro/loop/name", "loopy")
-    apteryx_set("/logical-elements/logical-element-ro/loop/root", "root")
-    apteryx_set("/apteryx/sockets/E18FE205",  "tcp://127.0.0.1:9999")
-    apteryx_proxy("/logical-elements/logical-element-ro/loopy/*", "tcp://127.0.0.1:9999")
+    apteryx.set("/logical-elements/logical-element-ro/loop/name", "loopy")
+    apteryx.set("/logical-elements/logical-element-ro/loop/root", "root")
+    apteryx.set("/apteryx/sockets/E18FE205",  "tcp://127.0.0.1:9999")
+    apteryx.proxy("/logical-elements/logical-element-ro/loopy/*", "tcp://127.0.0.1:9999")
     payload = """
 <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
         xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -804,10 +805,10 @@ def test_edit_config_proxy_named_element_read_only():
 
 
 def test_edit_config_proxy_remove_leaf_list_item_read_only():
-    apteryx_set("/logical-elements/logical-element-ro/loop/name", "loopy")
-    apteryx_set("/logical-elements/logical-element-ro/loop/root", "root")
-    apteryx_set("/apteryx/sockets/E18FE205",  "tcp://127.0.0.1:9999")
-    apteryx_proxy("/logical-elements/logical-element-ro/loopy/*", "tcp://127.0.0.1:9999")
+    apteryx.set("/logical-elements/logical-element-ro/loop/name", "loopy")
+    apteryx.set("/logical-elements/logical-element-ro/loop/root", "root")
+    apteryx.set("/apteryx/sockets/E18FE205",  "tcp://127.0.0.1:9999")
+    apteryx.proxy("/logical-elements/logical-element-ro/loopy/*", "tcp://127.0.0.1:9999")
     payload = """
 <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
         xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
@@ -953,7 +954,7 @@ def test_edit_config_create_when_condition_false():
 
 
 def test_edit_config_when_condition_true():
-    apteryx_set("/test/animals/animal/wombat/name", "wombat")
+    apteryx.set("/test/animals/animal/wombat/name", "wombat")
     payload = """
 <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
         xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">

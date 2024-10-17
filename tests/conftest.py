@@ -3,7 +3,7 @@ import pytest
 from ncclient import manager
 from ncclient.operations import RPCError
 from lxml import etree
-import subprocess
+import apteryx
 
 # TEST CONFIGURATION
 
@@ -12,11 +12,8 @@ port = 830
 username = 'manager'
 password = 'friend'
 
-APTERYX = 'LD_LIBRARY_PATH=.build/usr/lib .build/usr/bin/apteryx'
-# APTERYX_URL='tcp://192.168.6.2:9999:'
-APTERYX_URL = ''
-
 # TEST HELPERS
+
 
 db_default = [
     # Default namespace
@@ -171,44 +168,22 @@ db_default = [
 ]
 
 
-def apteryx_set(path, value):
-    assert subprocess.check_output('%s -s %s%s "%s"' % (APTERYX, APTERYX_URL, path, value), shell=True).strip().decode('utf-8') != "Failed"
-
-
-def apteryx_get(path):
-    return subprocess.check_output("%s -g %s%s" % (APTERYX, APTERYX_URL, path), shell=True).strip().decode('utf-8')
-
-
-def apteryx_prune(path):
-    assert subprocess.check_output("%s -r %s%s" % (APTERYX, APTERYX_URL, path), shell=True).strip().decode('utf-8') != "Failed"
-
-
-def apteryx_traverse(path):
-    return subprocess.check_output("%s -t %s%s" % (APTERYX, APTERYX_URL, path), shell=True).strip().decode('utf-8')
-
-
-def apteryx_proxy(path, url):
-    assert subprocess.check_output('%s -x %s%s "%s"' % (APTERYX, APTERYX_URL, path, url), shell=True).strip().decode('utf-8') != "Failed"
-
-
 @pytest.fixture(autouse=True)
 def run_around_tests():
     # Before test
-    os.system("echo Before test")
-    os.system("%s -r /test" % (APTERYX))
-    apteryx_prune("/test")
-    apteryx_prune("/test-list")
-    apteryx_prune("/test-leaflist")
-    apteryx_prune("/t2:test")
+    apteryx.prune("/test")
+    apteryx.prune("/test-list")
+    apteryx.prune("/test-leaflist")
+    apteryx.prune("/t2:test")
     for path, value in db_default:
-        apteryx_set(path, value)
+        apteryx.set(path, value)
     yield
     # After test
     os.system("echo After test")
-    apteryx_prune("/test")
-    apteryx_prune("/test-list")
-    apteryx_prune("/test-leaflist")
-    apteryx_prune("/t2:test")
+    apteryx.prune("/test")
+    apteryx.prune("/test-list")
+    apteryx.prune("/test-leaflist")
+    apteryx.prune("/t2:test")
 
 
 def connect():
