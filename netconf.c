@@ -1309,11 +1309,11 @@ check_namespace_set (xmlNode *node, char **ns_href, char **ns_prefix)
 /* Getting the response node with netconf is more complicated than restconf as they can have multiple nodes at
  * some levels. This routine uses the qnode and works upward to guide the tree node as it works from the top down */
 static GNode*
-get_response_node (GNode *tree, int rdepth, GNode *qnode, sch_node **rschema)
+get_response_node (GNode *tree, int *rdepth, GNode *qnode, sch_node **rschema)
 {
     GNode *rnode = tree;
     GNode *child = NULL;
-    int depth = rdepth;
+    int depth = *rdepth;
 
     while (--depth && rnode)
     {
@@ -1351,7 +1351,10 @@ get_response_node (GNode *tree, int rdepth, GNode *qnode, sch_node **rschema)
                     char *path = apteryx_node_path(child);
                     sch_node *snode = sch_lookup (g_schema, path);
                     if (snode)
+                    {
                         *rschema = snode;
+                        *rdepth = depth + 1;
+                    }
                     g_free (path);
                 }
             }
@@ -1405,7 +1408,7 @@ get_query_to_xml (struct netconf_session *session, xmlNode *rpc, GNode *query,
     {
         GNode *rnode = NULL;
         if (tree)
-            rnode = get_response_node (tree, rdepth, qnode, &rschema);
+            rnode = get_response_node (tree, &rdepth, qnode, &rschema);
 
         sch_add_defaults (g_schema, rschema, &tree, &query, rnode, qnode, rdepth,
                           qdepth, schflags);
@@ -1413,7 +1416,7 @@ get_query_to_xml (struct netconf_session *session, xmlNode *rpc, GNode *query,
 
     if (tree && (schflags & SCH_F_TRIM_DEFAULTS) && rschema)
     {
-        GNode *rnode = get_response_node (tree, rdepth, qnode, &rschema);
+        GNode *rnode = get_response_node (tree, &rdepth, qnode, &rschema);
         sch_traverse_tree (g_schema, rschema, rnode, schflags);
     }
 

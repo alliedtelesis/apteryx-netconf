@@ -340,6 +340,26 @@ def test_with_defaults_get_subtree_select_one_node_other():
     _get_test_with_defaults_and_filter(select, with_defaults, expected)
 
 
+def test_with_defaults_get_subtree_select_one_node_other_2():
+    with_defaults = 'report-all'
+    select = '<test><animals><animal><name>dog</name><config><type/></config></animal></animals></test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>dog</name>
+        <config>
+          <type>big</type>
+        </config>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+    """
+    _get_test_with_defaults_and_filter(select, with_defaults, expected)
+
+
 def test_with_default_report_all_get_leaf():
     with_defaults = 'report-all'
     select = '<interfaces><interface><name>eth0</name><status/></interface></interfaces>'
@@ -536,11 +556,17 @@ def test_with_default_report_all_on_empty_branch():
       <animal>
         <name>cat</name>
         <type xmlns="http://test.com/ns/yang/animal-types">a-types:big</type>
+        <config>
+          <type>big</type>
+        </config>
       </animal>
       <animal>
         <name>dog</name>
         <type xmlns="http://test.com/ns/yang/animal-types">a-types:big</type>
         <colour>brown</colour>
+        <config>
+          <type>big</type>
+        </config>
       </animal>
       <animal>
         <name>hamster</name>
@@ -553,16 +579,25 @@ def test_with_default_report_all_on_empty_branch():
           <name>nuts</name>
           <type>kibble</type>
         </food>
+        <config>
+          <type>big</type>
+        </config>
       </animal>
       <animal>
         <name>mouse</name>
         <type xmlns="http://test.com/ns/yang/animal-types">a-types:little</type>
         <colour>grey</colour>
+        <config>
+          <type>big</type>
+        </config>
       </animal>
       <animal>
         <name>parrot</name>
         <type xmlns="http://test.com/ns/yang/animal-types">a-types:big</type>
         <colour>blue</colour>
+        <config>
+          <type>big</type>
+        </config>
         <toys>
           <toy>puzzles</toy>
           <toy>rings</toy>
@@ -635,6 +670,53 @@ def test_with_default_report_all_proxy_get_leaf():
       </interfaces>
     </logical-element>
   </logical-elements>
+</nc:data>
+    """
+    _get_test_with_defaults_and_filter(select, with_defaults, expected)
+
+
+def test_with_default_report_all_complex_tree():
+    """
+    Use the complex objects tree of the test schema to verify correct operation.
+    """
+    apteryx.set("/test/objects/object/fred/name", "fred")
+    apteryx.set("/test/objects/object/fred/top-container/conf/enabled", "false")
+    with_defaults = 'report-all'
+    select = """
+        <test xmlns="http://test.com/ns/yang/testing">
+            <objects>
+                <object>
+                    <name>fred</name>
+                    <top-container>
+                        <inner-container>
+                            <conf>
+                                <enabled/>
+                            </conf>
+                        </inner-container>
+                    </top-container>
+                </object>
+            </objects>
+        </test>
+    """
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <objects>
+      <object>
+        <name>fred</name>
+        <top-container>
+          <conf>
+            <enabled>true</enabled>
+          </conf>
+          <inner-container>
+            <conf>
+              <enabled>false</enabled>
+            </conf>
+          </inner-container>
+        </top-container>
+      </object>
+    </objects>
+  </test>
 </nc:data>
     """
     _get_test_with_defaults_and_filter(select, with_defaults, expected)
