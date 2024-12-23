@@ -669,38 +669,104 @@ static void
 schema_set_model_information (xmlNode * cap)
 {
     xmlNode *xml_child;
-    sch_loaded_model *loaded;
-    GList *list;
     char *capability;
-    GList *loaded_models = sch_get_loaded_models (g_schema);
+    GNode *query = APTERYX_NODE (NULL, g_strdup_printf ("%s/*", YANG_LIBRARY_MOD_SET_COMMON_MOD));
+    GNode *tree = apteryx_query (query);
 
-    for (list = g_list_first (loaded_models); list; list = g_list_next (list))
+    if (tree)
     {
-        loaded = list->data;
-        if (loaded->organization && loaded->version && loaded->model &&
-            strlen (loaded->organization) && strlen (loaded->version) &&
-            strlen (loaded->model))
+        for (GNode *child = tree->children; child; child = child->next)
         {
-            char *old;
-            xml_child = xmlNewChild (cap, NULL, BAD_CAST "capability", NULL);
-            capability = g_strdup_printf ("%s?module=%s&amp;revision=%s",
-                                          loaded->ns_href, loaded->model, loaded->version);
-            if (loaded->features)
+            char *model = NULL;
+            char *revision = NULL;
+            char *ns_href = NULL;
+            char *features = NULL;
+            char *deviations = NULL;
+
+            for (GNode *info = child->children; info; info = info->next)
             {
-                old = capability;
-                capability = g_strdup_printf ("%s&amp;features=%s", capability, loaded->features);
-                g_free (old);
+                if (g_strcmp0 ((char *) info->data, "name") == 0 && info->children)
+                {
+                    model = (char *) info->children->data;
+                }
+                else if (g_strcmp0 ((char *) info->data, "namespace") == 0 && info->children)
+                {
+                    ns_href = (char *) info->children->data;
+                }
+                else if (g_strcmp0 ((char *) info->data, "revision") == 0 && info->children)
+                {
+                    revision = (char *) info->children->data;
+                }
+                else if (g_strcmp0 ((char *) info->data, "feature") == 0 && info->children)
+                {
+                    GList *feat_list = NULL;
+                    for (GNode *list = info->children; list; list = list->next)
+                    {
+                        feat_list = g_list_prepend (feat_list, list->data);
+                    }
+                    if (feat_list)
+                    {
+                        feat_list = g_list_sort (feat_list, (GCompareFunc) g_strcmp0);
+                        for (GList *iter = g_list_first (feat_list); iter; iter = g_list_next (iter))
+                        {
+                            if (features)
+                            {
+                                char *temp = features;
+                                features = g_strdup_printf ("%s,%s", features, (char *) iter->data);
+                                g_free (temp);
+                            }
+                            else
+                            {
+                                features = g_strdup ((char *) iter->data);
+                            }
+                        }
+                        g_list_free (feat_list);
+                    }
+                }
+                else if (g_strcmp0 ((char *) info->data, "deviation") == 0 && info->children)
+                {
+                    for (GNode *list = info->children; list; list = list->next)
+                    {
+                        if (deviations)
+                        {
+                            char *temp = deviations;
+                            deviations = g_strdup_printf ("%s,%s", deviations, (char *) list->data);
+                            g_free (temp);
+                        }
+                        else
+                        {
+                            deviations = g_strdup ((char *) list->data);
+                        }
+                    }
+                }
             }
-            if (loaded->deviations)
+            if (ns_href && revision && model)
             {
-                old = capability;
-                capability = g_strdup_printf ("%s&amp;deviations=%s", capability, loaded->deviations);
-                g_free (old);
+                char *old;
+                xml_child = xmlNewChild (cap, NULL, BAD_CAST "capability", NULL);
+                capability = g_strdup_printf ("%s?module=%s&amp;revision=%s",
+                                              ns_href, model, revision);
+                if (features)
+                {
+                    old = capability;
+                    capability = g_strdup_printf ("%s&amp;features=%s", capability, features);
+                    g_free (old);
+                }
+                if (deviations)
+                {
+                    old = capability;
+                    capability = g_strdup_printf ("%s&amp;deviations=%s", capability, deviations);
+                    g_free (old);
+                }
+                xmlNodeSetContent (xml_child, BAD_CAST capability);
+                g_free (capability);
             }
-            xmlNodeSetContent (xml_child, BAD_CAST capability);
-            g_free (capability);
+            g_free (features);
+            g_free (deviations);
         }
+        apteryx_free_tree (tree);
     }
+    apteryx_free_tree (query);
 }
 
 static bool
@@ -2940,10 +3006,10 @@ netconf_handle_session (int fd)
 }
 
 bool
-netconf_init (const char *path, const char *supported,  const char *cp, const char *rm)
+netconf_init (const char *path, const char *cp, const char *rm)
 {
     /* Load Data Models */
-    g_schema = sch_load_with_model_list_filename (path, supported);
+    g_schema = sch_load_model_list_yang_library (path);
     if (!g_schema)
     {
         return false;
