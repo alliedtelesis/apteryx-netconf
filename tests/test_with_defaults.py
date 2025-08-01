@@ -437,6 +437,34 @@ def test_with_default_report_all_no_name_get_specific_leaf():
     _get_test_with_defaults_and_filter(select, with_defaults, expected)
 
 
+def test_with_default_report_all_2keys_get_specific_leaf():
+    apteryx.set("/test/friends/fred_73/name", "fred")
+    apteryx.set("/test/friends/fred_73/age", "73")
+    apteryx.set("/test/friends/mary_78/name", "mary")
+    apteryx.set("/test/friends/mary_78/age", "78")
+    apteryx.set("/test/friends/mary_78/gender", "female")
+    apteryx.set("/test/friends/mary_78/alive", "false")
+    with_defaults = 'report-all'
+    select = '<test><friends><gender/></friends></test>'
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <friends>
+      <name>fred</name>
+      <age>73</age>
+      <gender>male</gender>
+    </friends>
+    <friends>
+      <name>mary</name>
+      <age>78</age>
+      <gender>female</gender>
+    </friends>
+  </test>
+</nc:data>
+    """
+    _get_test_with_defaults_and_filter(select, with_defaults, expected)
+
+
 def test_with_default_report_all_no_defaults_set_leaf():
     apteryx.set("/interfaces/interface/eth0/mtu", "")
     apteryx.set("/interfaces/interface/eth2/mtu", "")
