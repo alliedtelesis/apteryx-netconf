@@ -345,25 +345,25 @@ _sch_gnode_to_xml (sch_instance * instance, sch_node * schema, sch_ns *ns, xmlNo
             {
                 if ((flags & SCH_F_XPATH))
                 {
-                    char *key = sch_list_key (schema);
-                    if (key)
+                    GList *keys = sch_list_keys (schema);
+                    for (GList *key = keys; key != NULL; key = key->next)
                     {
                         xmlNode *n = list_data->children;
                         while (n)
                         {
-                            if (n->type == XML_ELEMENT_NODE && g_strcmp0 (key, (char *) n->name) == 0)
+                            if (n->type == XML_ELEMENT_NODE && g_strcmp0 (key->data, (char *) n->name) == 0)
                                 break;
                             n = n->next;
                         }
 
                         if (!n)
                         {
-                            xmlNode *key_data = xmlNewNode (NULL, BAD_CAST key);
+                            xmlNode *key_data = xmlNewNode (NULL, BAD_CAST key->data);
                             xmlNodeSetContent (key_data, (const xmlChar *) APTERYX_NAME (child));
                             xmlAddPrevSibling (list_data->children, key_data);
                         }
-                        g_free (key);
                     }
+                    g_list_free_full (keys, g_free);
                 }
                 if (parent)
                     xmlAddChildList (parent, list_data);
