@@ -2001,11 +2001,21 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
 
     /* Check the target */
     node = xmlFindNodeByName (action, BAD_CAST "target");
-    if (!node || !xmlFirstElementChild (node) ||
-        xmlStrcmp (xmlFirstElementChild (node)->name, BAD_CAST "running"))
+    if (!node)
+    {
+        VERBOSE ("Missing \"target\" element\n");
+        ret =
+            send_rpc_error_full (session, rpc, NC_ERR_TAG_MISSING_ELEM,
+                                 NC_ERR_TYPE_PROTOCOL, "Missing target element", "target",
+                                 NULL, false);
+        return ret;
+    }
+    xmlNodePtr child = xmlFirstElementChild (node);
+    if (!child ||
+        xmlStrcmp (child->name, BAD_CAST "running"))
     {
         gchar *error_msg = g_strdup_printf ("Datastore \"%s\" not supported",
-                                            (char *) xmlFirstElementChild (node)->name);
+                                            child ? (char *) child->name : "null");
         VERBOSE ("%s\n", error_msg);
         ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED, NC_ERR_TYPE_PROTOCOL,
                                    error_msg, NULL, NULL, true);
@@ -2232,11 +2242,21 @@ handle_lock (struct netconf_session *session, xmlNode * rpc)
 
     /* Check the target */
     node = xmlFindNodeByName (action, BAD_CAST "target");
-    if (!node || !xmlFirstElementChild (node) ||
-        xmlStrcmp (xmlFirstElementChild (node)->name, BAD_CAST "running"))
+    if (!node)
+    {
+        VERBOSE ("Missing \"target\" element\n");
+        ret =
+            send_rpc_error_full (session, rpc, NC_ERR_TAG_MISSING_ELEM,
+                                 NC_ERR_TYPE_PROTOCOL, "Missing target element", "target",
+                                 NULL, false);
+        return ret;
+    }
+    xmlNodePtr child = xmlFirstElementChild (node);
+    if (!child ||
+        xmlStrcmp (child->name, BAD_CAST "running"))
     {
         gchar *error_msg = g_strdup_printf ("Datastore \"%s\" not supported",
-                                            (char *) xmlFirstElementChild (node)->name);
+                                            child ? (char *) child->name : "null");
         VERBOSE ("%s\n", error_msg);
         ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED, NC_ERR_TYPE_PROTOCOL,
                                    error_msg, NULL, NULL, true);
@@ -2287,14 +2307,24 @@ handle_unlock (struct netconf_session *session, xmlNode * rpc)
 
     /* Check the target */
     node = xmlFindNodeByName (action, BAD_CAST "target");
-    if (!node || !xmlFirstElementChild (node) ||
-        xmlStrcmp (xmlFirstElementChild (node)->name, BAD_CAST "running"))
+    if (!node)
+    {
+        VERBOSE ("Missing \"target\" element\n");
+        ret =
+            send_rpc_error_full (session, rpc, NC_ERR_TAG_MISSING_ELEM,
+                                 NC_ERR_TYPE_PROTOCOL, "Missing target element", "target",
+                                 NULL, false);
+        return ret;
+    }
+    xmlNodePtr child = xmlFirstElementChild (node);
+    if (!child || xmlStrcmp (child->name, BAD_CAST "running"))
     {
         gchar *error_msg = g_strdup_printf ("Datastore \"%s\" not supported",
-                                            (char *) xmlFirstElementChild (node)->name);
+                                            child ? (char *) child->name : "null");
         VERBOSE ("%s\n", error_msg);
-        ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED, NC_ERR_TYPE_PROTOCOL,
-                                   error_msg, NULL, NULL, false);
+        ret =
+            send_rpc_error_full (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED,
+                                 NC_ERR_TYPE_PROTOCOL, error_msg, NULL, NULL, false);
         g_free (error_msg);
         return ret;
     }
