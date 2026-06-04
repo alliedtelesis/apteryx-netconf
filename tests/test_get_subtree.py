@@ -938,3 +938,21 @@ def test_get_subtree_must_condition_false():
 </nc:data>
     """
     _get_test_with_filter(select, expected)
+
+
+def test_get_subtree_ampersand_in_value():
+    apteryx.set('/test/animals/animal/parrot/colour', 'black&white')
+    select = '<test xmlns="http://test.com/ns/yang/testing"><animals><animal><name>parrot</name><colour/></animal></animals></test>'
+    xml = _get_test_with_filter(select)
+    colour = xml.find('.//{*}colour')
+    assert colour is not None
+    assert colour.text == 'black&white'
+
+
+def test_get_subtree_double_ampersand_in_value():
+    apteryx.set('/test/animals/animal/parrot/colour', 'black&&white')
+    select = '<test xmlns="http://test.com/ns/yang/testing"><animals><animal><name>parrot</name><colour/></animal></animals></test>'
+    xml = _get_test_with_filter(select)
+    colour = xml.find('.//{*}colour')
+    assert colour is not None
+    assert colour.text == 'black&&white'
