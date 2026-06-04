@@ -291,7 +291,7 @@ _sch_gnode_to_xml (sch_instance * instance, sch_node * schema, sch_ns *ns, xmlNo
             {
                 char *leaf_name = APTERYX_NAME (value_node);
                 xmlNode *list_data = xmlNewNode (NULL, BAD_CAST name);
-                xmlNodeSetContent (list_data, (const xmlChar *) leaf_name);
+                xmlAddChild (list_data, xmlNewText ((const xmlChar *) leaf_name));
                 sch_ns *sns = sch_node_ns (schema);
                 if (!pschema || !sch_ns_match (pschema, sns))
                 {
@@ -359,7 +359,7 @@ _sch_gnode_to_xml (sch_instance * instance, sch_node * schema, sch_ns *ns, xmlNo
                         if (!n)
                         {
                             xmlNode *key_data = xmlNewNode (NULL, BAD_CAST key->data);
-                            xmlNodeSetContent (key_data, (const xmlChar *) APTERYX_NAME (child));
+                            xmlAddChild (key_data, xmlNewText ((const xmlChar *) APTERYX_NAME (child)));
                             xmlAddPrevSibling (list_data->children, key_data);
                         }
                     }
@@ -432,7 +432,7 @@ _sch_gnode_to_xml (sch_instance * instance, sch_node * schema, sch_ns *ns, xmlNo
                 xmlFree (idref_href);
             }
 
-            xmlNodeSetContent (data, (const xmlChar *) value);
+            xmlAddChild (data, xmlNewText ((const xmlChar *) value));
             if (parent)
                 xmlAddChildList (parent, data);
             DEBUG ("%*s%s = %s\n", depth * 2, " ", APTERYX_NAME (node), value);
