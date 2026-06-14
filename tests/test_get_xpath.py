@@ -6403,6 +6403,43 @@ def test_get_xpath_must_condition_false():
     _get_test_with_filter(xpath, expected, f_type='xpath')
 
 
+def test_get_xpath_when_starts_with_true():
+    apteryx.set("/test/animals/animal/cat/legs", "4")
+    xpath = "/test/animals/animal[name='cat']"
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>cat</name>
+        <type xmlns="http://test.com/ns/yang/animal-types">a-types:big</type>
+        <legs>4</legs>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_when_starts_with_false():
+    apteryx.set("/test/animals/animal/dog/legs", "4")
+    xpath = "/test/animals/animal[name='dog']"
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <animals>
+      <animal>
+        <name>dog</name>
+        <colour>brown</colour>
+      </animal>
+    </animals>
+  </test>
+</nc:data>
+    """
+    _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
 def test_get_xpath_list_trunk_predicate_one():
     xpath = '/test/animals/animal[1]'
     expected = """
