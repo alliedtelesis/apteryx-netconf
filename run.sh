@@ -78,7 +78,7 @@ if [ ! -f $BUILD/usr/sbin/sshd ]; then
         echo "Building openssh"
         cd openssh
         autoreconf -fvi
-        ./configure --prefix=/usr --with-privsep-path=$BUILD/empty --with-privsep-user=manager
+        ./configure --prefix=/usr --with-privsep-path=$BUILD/empty --with-privsep-user=manager --without-zlib-version-check
         make install-nokeys DESTDIR=$BUILD
         rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi
         cd $BUILD
@@ -89,9 +89,13 @@ fi
 if [ ! -f $BUILD/ssh_host_rsa_key ]; then
     $BUILD/usr/bin/ssh-keygen -b 2048 -t rsa -f $BUILD/ssh_host_rsa_key -q -N ""
 fi
+if [ ! -f $BUILD/ssh_host_ed25519_key ]; then
+    $BUILD/usr/bin/ssh-keygen -t ed25519 -f $BUILD/ssh_host_ed25519_key -q -N ""
+fi
 echo -e "
 HostKey $BUILD/ssh_host_rsa_key
-HostKeyAlgorithms ssh-rsa,ssh-dss
+HostKey $BUILD/ssh_host_ed25519_key
+HostKeyAlgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa
 Port 830
 Subsystem netconf /usr/bin/socat STDIO UNIX:$BUILD/apteryx-netconf.sock
 PidFile /tmp/apteryx-netconf-sshd.pid

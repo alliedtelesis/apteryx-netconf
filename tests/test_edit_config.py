@@ -1255,6 +1255,144 @@ def test_edit_config_leaf_list_merge_and_delete():
     _edit_config_test(payload, post_xpath='/test/settings/users[name="bob"]', inc_str=['24'], exc_str=['23'])
 
 
+def test_edit_config_list_unique_create_violation():
+    """
+    Creating a new user (a distinct key from any existing user) with an email that
+    duplicates an existing user's email should be rejected.
+    """
+    apteryx.set("/test/settings/users/bob/email", "bob@example.com")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users xc:operation="create">
+        <name>alice</name>
+        <email>bob@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_create_ok():
+    """
+    Creating a new user with a distinct email should succeed.
+    """
+    apteryx.set("/test/settings/users/bob/email", "bob@example.com")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users xc:operation="create">
+        <name>alice</name>
+        <email>alice@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath='/test/settings/users[name="alice"]', inc_str=['alice@example.com'])
+
+
+def test_edit_config_list_unique_replace_violation():
+    """
+    Replacing an existing entry so its email collides with another entry should be rejected.
+    """
+    apteryx.set("/test/settings/users/bob/email", "bob@example.com")
+    apteryx.set("/test/settings/users/alice/name", "alice")
+    apteryx.set("/test/settings/users/alice/email", "alice@example.com")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users xc:operation="replace">
+        <name>alice</name>
+        <email>bob@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_bare_merge_violation():
+    """
+    Merging just the email leaf of an existing entry (no xc:operation, so it defaults
+    to merge) so that it collides with another entry's email should be rejected.
+    """
+    apteryx.set("/test/settings/users/bob/email", "bob@example.com")
+    apteryx.set("/test/settings/users/alice/name", "alice")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users>
+        <name>alice</name>
+        <email>bob@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_batch_create_violation():
+    """
+    Creates two new users with the same email in a single edit-config request.
+    This should be rejected due to unique email requirement.
+    """
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users xc:operation="create">
+        <name>carol</name>
+        <email>duplicate@example.com</email>
+      </users>
+      <users xc:operation="create">
+        <name>dave</name>
+        <email>duplicate@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_create_violation_multi_key():
+    """
+    Creating a new friend (a distinct 2-part key from any existing friend)
+    with an email that duplicates an existing friend's email should be
+    rejected, the same as for a single-key list.
+    """
+    apteryx.set("/test/friends/fred_73/name", "fred")
+    apteryx.set("/test/friends/fred_73/age", "73")
+    apteryx.set("/test/friends/fred_73/email", "fred@example.com")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <friends xc:operation="create">
+      <name>mary</name>
+      <age>25</age>
+      <email>fred@example.com</email>
+    </friends>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
 def test_edit_config_list_missing_index():
     """
     Set merge for new animal without an index, expect an error.
