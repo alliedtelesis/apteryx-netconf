@@ -1986,13 +1986,15 @@ _tree_find_node (GNode *tree, const char *path)
     return node;
 }
 
-/** Return the value of leaf_name under the entry at entry_path in apteryx tree,
- * or NULL if not present. */
+/** Return the value of leaf_name under the entry at entry_path in apteryx
+ * tree, or NULL if not present. */
 static char *
 _tree_get_leaf (GNode *tree, const char *entry_path, const char *leaf_name)
 {
-    GNode *node = _tree_find_node (tree, entry_path);
-    char *value = node ? APTERYX_CHILD_VALUE (node, leaf_name) : NULL;
+    char *full_path = g_strdup_printf ("%s/%s", entry_path, leaf_name);
+    GNode *node = _tree_find_node (tree, full_path);
+    g_free (full_path);
+    char *value = (node && APTERYX_HAS_VALUE (node)) ? APTERYX_VALUE (node) : NULL;
     return value ? g_strdup (value) : NULL;
 }
 

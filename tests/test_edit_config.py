@@ -1393,6 +1393,177 @@ def test_edit_config_list_unique_create_violation_multi_key():
     _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
 
 
+def test_edit_config_list_unique_nested_create_violation():
+    """
+    Create a gateway using a duplicate prefix expect duplicate values are nested.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways xc:operation="create">
+      <name>vlan11</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+          <mac>00:00:00:00:00:01</mac>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_nested_create_violation_mac_differs():
+    """
+    Creating a new gateway whose prefix duplicates an existing gateway's,
+    but whose mac differs, should still be rejected, ensuring mac plays no
+    part in the unique constraint check.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways xc:operation="create">
+      <name>vlan11</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+          <mac>00:00:00:00:00:02</mac>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_nested_bare_merge_self_ok():
+    """
+    Merging a gateway's own prefix back onto itself, unchanged, should
+    succeed. The unique check must exclude an entry from being compared
+    against its own current value.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways>
+      <name>vlan10</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath='/test/gateways[name="vlan10"]', inc_str=['10.0.0.0/24'])
+
+
+def test_edit_config_list_unique_swap_ok():
+    """
+    Check that swapping the prefixes of two existing gateways
+    in a single edit-config request succeeds.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    apteryx.set("/test/gateways/vlan11/name", "vlan11")
+    apteryx.set("/test/gateways/vlan11/config/sag/prefix", "10.0.1.0/24")
+    apteryx.set("/test/gateways/vlan11/config/sag/mac", "00:00:00:00:00:01")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways>
+      <name>vlan10</name>
+      <config>
+        <sag>
+          <prefix>10.0.1.0/24</prefix>
+        </sag>
+      </config>
+    </gateways>
+    <gateways>
+      <name>vlan11</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(payload)
+    m = connect()
+    vlan10_xml = m.get(filter=('xpath', '/test/gateways[name="vlan10"]')).data
+    vlan11_xml = m.get(filter=('xpath', '/test/gateways[name="vlan11"]')).data
+    m.close_session()
+    assert '10.0.1.0/24' in etree.XPath("//text()")(vlan10_xml)
+    assert '10.0.0.0/24' in etree.XPath("//text()")(vlan11_xml)
+    assert '10.0.0.0/24' not in etree.XPath("//text()")(vlan10_xml)
+    assert '10.0.1.0/24' not in etree.XPath("//text()")(vlan11_xml)
+
+
+def test_edit_config_list_unique_reuse_after_delete_ok():
+    """
+    Deleting a gateway's prefix, then assigning that exact prefix to a
+    different gateway in a later request, should succeed. E.g., deleting
+    it must correctly free it up.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    delete_payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways>
+      <name>vlan10</name>
+      <config>
+        <sag>
+          <prefix xc:operation="delete">10.0.0.0/24</prefix>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(delete_payload, post_xpath='/test/gateways[name="vlan10"]', exc_str=['10.0.0.0/24'])
+
+    reuse_payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways xc:operation="create">
+      <name>vlan11</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+          <mac>00:00:00:00:00:02</mac>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(reuse_payload, post_xpath='/test/gateways[name="vlan11"]', inc_str=['10.0.0.0/24'])
+
+
 def test_edit_config_list_missing_index():
     """
     Set merge for new animal without an index, expect an error.
