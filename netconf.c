@@ -2758,7 +2758,7 @@ receive_message (struct netconf_session *session, int *rlen)
             /* End of message */
             break;
         }
-        else if (chunk_len > MAX_REQUEST_MESSAGE_SIZE)
+        else if (chunk_len > MAX_REQUEST_MESSAGE_SIZE - len)
         {
             gchar *error_msg = g_strdup ("NETCONF: The request is too large for the implementation to handle.");
             VERBOSE ("%s\n", error_msg);
