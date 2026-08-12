@@ -2708,7 +2708,7 @@ read_chunk_size (struct netconf_session *session)
     /* Read chunk-size (\n#<chunk-size>\n */
     while ((session->running = g_main_loop_is_running (g_loop)))
     {
-        if (len > MAX_CHUNK_HEADER_SIZE || recv (session->fd, pt, 1, 0) != 1)
+        if (len >= MAX_CHUNK_HEADER_SIZE || recv (session->fd, pt, 1, 0) != 1)
         {
             ERROR ("RX Failed to read chunk header byte\n");
             break;
