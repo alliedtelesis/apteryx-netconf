@@ -25,7 +25,7 @@ def test_server_capabilities():
     assert ":interleave" not in m.server_capabilities
     assert ":session-id" not in m.server_capabilities
     # Supported models - first is default namespace
-    assert "http://test.com/ns/yang/testing?module=testing&revision=2023-01-01&features=test-time,dummy" in m.server_capabilities
+    assert "http://test.com/ns/yang/testing?module=testing&revision=2023-01-01&features=dummy,test-time" in m.server_capabilities
     assert "http://test.com/ns/yang/testing-2?module=testing-2&revision=2023-02-01" in m.server_capabilities
     assert "http://test.com/ns/yang/testing2-augmented?module=testing2-augmented&revision=2023-02-02" in m.server_capabilities
     m.close_session()
