@@ -1577,11 +1577,11 @@ get_process_action (struct netconf_session *session, xmlNode *rpc, xmlNode *node
     /* Check the requested datastore */
     if (g_strcmp0 ((char *) node->name, "source") == 0)
     {
-        if (!xmlFirstElementChild (node) ||
-            g_strcmp0 ((char *) xmlFirstElementChild (node)->name, "running") != 0)
+        xmlNodePtr child = xmlFirstElementChild (node);
+        if (!child || g_strcmp0 ((char *) child->name, "running") != 0)
         {
             gchar *error_msg = g_strdup_printf ("Datastore \"%s\" not supported",
-                                                (char *) xmlFirstElementChild (node)->name);
+                                                child ? (char *) child->name : "null");
             VERBOSE ("%s\n", error_msg);
             *ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_OPR_NOT_SUPPORTED, NC_ERR_TYPE_PROTOCOL,
                                         error_msg, NULL, NULL, true);
