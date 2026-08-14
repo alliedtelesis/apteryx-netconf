@@ -104,3 +104,45 @@ def test_multi_chunk_message_within_limit():
     sock.close()
     assert 'rpc-reply' in result
     assert 'urn:uuid:6f6b6f6b-0000-0000-0000-000000000000' in result
+
+
+def test_get_config_empty_source():
+    """
+    An empty <source/> element must not crash the daemon (CR-91412).
+
+    get_process_action() crashed by calling xmlFirstElementChild(node)->name
+    a second time without checking if the first call returned NULL.
+
+    This test confirms the fix: an empty <source/> now produces a normal
+    rpc-error, and the session stays alive and responsive afterwards.
+    """
+    cwd = os.getcwd()
+    unix_path = cwd + '/.build/apteryx-netconf.sock'
+    sock = _connect_and_hello(unix_path)
+
+    rpc_xml = '<?xml version="1.0" encoding="UTF-8"?><nc:rpc ' \
+              'xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" ' \
+              'message-id="urn:uuid:aaaaaaaa-0000-0000-0000-000000000000">' \
+              '<nc:get-config><nc:source/></nc:get-config></nc:rpc>'
+    chunk = rpc_xml.encode()
+    sock.send('\n#{0}\n'.format(len(chunk)).encode() + chunk)
+    sock.send(b'\n##\n')
+
+    result = _recv_until(sock, b'\n##\n').decode('utf-8')
+    assert 'rpc-error' in result
+    assert 'urn:uuid:aaaaaaaa-0000-0000-0000-000000000000' in result
+
+    # Confirm the daemon is still alive: a second, well-formed request on
+    # the same session must still get a normal reply.
+    rpc_xml2 = '<?xml version="1.0" encoding="UTF-8"?><nc:rpc ' \
+               'xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" ' \
+               'message-id="urn:uuid:bbbbbbbb-0000-0000-0000-000000000000">' \
+               '<nc:get/></nc:rpc>'
+    chunk2 = rpc_xml2.encode()
+    sock.send('\n#{0}\n'.format(len(chunk2)).encode() + chunk2)
+    sock.send(b'\n##\n')
+
+    result2 = _recv_until(sock, b'\n##\n').decode('utf-8')
+    sock.close()
+    assert 'rpc-reply' in result2
+    assert 'urn:uuid:bbbbbbbb-0000-0000-0000-000000000000' in result2
