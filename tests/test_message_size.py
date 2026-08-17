@@ -146,3 +146,40 @@ def test_get_config_empty_source():
     sock.close()
     assert 'rpc-reply' in result2
     assert 'urn:uuid:bbbbbbbb-0000-0000-0000-000000000000' in result2
+
+
+def test_negative_chunk_size():
+    """
+    A negative chunk-size must not crash the daemon (CR-91414).
+
+    A malformed negative chunk-size should be rejected with a normal
+    rpc-error instead of crashing the daemon. The rejection tears down the
+    session (same as test_aggregate_message_too_big), so daemon liveness
+    is confirmed with a fresh connection instead of reusing this one.
+    """
+    cwd = os.getcwd()
+    unix_path = cwd + '/.build/apteryx-netconf.sock'
+    sock = _connect_and_hello(unix_path)
+
+    sock.send(b'\n#-1\n')
+
+    result = _recv_until(sock, b'\n##\n').decode('utf-8')
+    sock.close()
+    assert 'too-big' in result
+
+    # Confirm the daemon itself is still alive: a fresh connection must
+    # still get a normal reply (the rejected session above is torn down,
+    # so it can't be reused for this check).
+    sock2 = _connect_and_hello(unix_path)
+    rpc_xml = '<?xml version="1.0" encoding="UTF-8"?><nc:rpc ' \
+              'xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" ' \
+              'message-id="urn:uuid:cccccccc-0000-0000-0000-000000000000">' \
+              '<nc:get/></nc:rpc>'
+    chunk = rpc_xml.encode()
+    sock2.send('\n#{0}\n'.format(len(chunk)).encode() + chunk)
+    sock2.send(b'\n##\n')
+
+    result2 = _recv_until(sock2, b'\n##\n').decode('utf-8')
+    sock2.close()
+    assert 'rpc-reply' in result2
+    assert 'urn:uuid:cccccccc-0000-0000-0000-000000000000' in result2
