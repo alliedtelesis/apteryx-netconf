@@ -1255,6 +1255,315 @@ def test_edit_config_leaf_list_merge_and_delete():
     _edit_config_test(payload, post_xpath='/test/settings/users[name="bob"]', inc_str=['24'], exc_str=['23'])
 
 
+def test_edit_config_list_unique_create_violation():
+    """
+    Creating a new user (a distinct key from any existing user) with an email that
+    duplicates an existing user's email should be rejected.
+    """
+    apteryx.set("/test/settings/users/bob/email", "bob@example.com")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users xc:operation="create">
+        <name>alice</name>
+        <email>bob@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_create_ok():
+    """
+    Creating a new user with a distinct email should succeed.
+    """
+    apteryx.set("/test/settings/users/bob/email", "bob@example.com")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users xc:operation="create">
+        <name>alice</name>
+        <email>alice@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath='/test/settings/users[name="alice"]', inc_str=['alice@example.com'])
+
+
+def test_edit_config_list_unique_replace_violation():
+    """
+    Replacing an existing entry so its email collides with another entry should be rejected.
+    """
+    apteryx.set("/test/settings/users/bob/email", "bob@example.com")
+    apteryx.set("/test/settings/users/alice/name", "alice")
+    apteryx.set("/test/settings/users/alice/email", "alice@example.com")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users xc:operation="replace">
+        <name>alice</name>
+        <email>bob@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_bare_merge_violation():
+    """
+    Merging just the email leaf of an existing entry (no xc:operation, so it defaults
+    to merge) so that it collides with another entry's email should be rejected.
+    """
+    apteryx.set("/test/settings/users/bob/email", "bob@example.com")
+    apteryx.set("/test/settings/users/alice/name", "alice")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users>
+        <name>alice</name>
+        <email>bob@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_batch_create_violation():
+    """
+    Creates two new users with the same email in a single edit-config request.
+    This should be rejected due to unique email requirement.
+    """
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <settings>
+      <users xc:operation="create">
+        <name>carol</name>
+        <email>duplicate@example.com</email>
+      </users>
+      <users xc:operation="create">
+        <name>dave</name>
+        <email>duplicate@example.com</email>
+      </users>
+    </settings>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_create_violation_multi_key():
+    """
+    Creating a new friend (a distinct 2-part key from any existing friend)
+    with an email that duplicates an existing friend's email should be
+    rejected, the same as for a single-key list.
+    """
+    apteryx.set("/test/friends/fred_73/name", "fred")
+    apteryx.set("/test/friends/fred_73/age", "73")
+    apteryx.set("/test/friends/fred_73/email", "fred@example.com")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <friends xc:operation="create">
+      <name>mary</name>
+      <age>25</age>
+      <email>fred@example.com</email>
+    </friends>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_nested_create_violation():
+    """
+    Create a gateway using a duplicate prefix expect duplicate values are nested.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways xc:operation="create">
+      <name>vlan11</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+          <mac>00:00:00:00:00:01</mac>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_nested_create_violation_mac_differs():
+    """
+    Creating a new gateway whose prefix duplicates an existing gateway's,
+    but whose mac differs, should still be rejected, ensuring mac plays no
+    part in the unique constraint check.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways xc:operation="create">
+      <name>vlan11</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+          <mac>00:00:00:00:00:02</mac>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, expect_err={"tag": "operation-failed", "type": "application"})
+
+
+def test_edit_config_list_unique_nested_bare_merge_self_ok():
+    """
+    Merging a gateway's own prefix back onto itself, unchanged, should
+    succeed. The unique check must exclude an entry from being compared
+    against its own current value.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways>
+      <name>vlan10</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(payload, post_xpath='/test/gateways[name="vlan10"]', inc_str=['10.0.0.0/24'])
+
+
+def test_edit_config_list_unique_swap_ok():
+    """
+    Check that swapping the prefixes of two existing gateways
+    in a single edit-config request succeeds.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    apteryx.set("/test/gateways/vlan11/name", "vlan11")
+    apteryx.set("/test/gateways/vlan11/config/sag/prefix", "10.0.1.0/24")
+    apteryx.set("/test/gateways/vlan11/config/sag/mac", "00:00:00:00:00:01")
+    payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways>
+      <name>vlan10</name>
+      <config>
+        <sag>
+          <prefix>10.0.1.0/24</prefix>
+        </sag>
+      </config>
+    </gateways>
+    <gateways>
+      <name>vlan11</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(payload)
+    m = connect()
+    vlan10_xml = m.get(filter=('xpath', '/test/gateways[name="vlan10"]')).data
+    vlan11_xml = m.get(filter=('xpath', '/test/gateways[name="vlan11"]')).data
+    m.close_session()
+    assert '10.0.1.0/24' in etree.XPath("//text()")(vlan10_xml)
+    assert '10.0.0.0/24' in etree.XPath("//text()")(vlan11_xml)
+    assert '10.0.0.0/24' not in etree.XPath("//text()")(vlan10_xml)
+    assert '10.0.1.0/24' not in etree.XPath("//text()")(vlan11_xml)
+
+
+def test_edit_config_list_unique_reuse_after_delete_ok():
+    """
+    Deleting a gateway's prefix, then assigning that exact prefix to a
+    different gateway in a later request, should succeed. E.g., deleting
+    it must correctly free it up.
+    """
+    apteryx.set("/test/gateways/vlan10/name", "vlan10")
+    apteryx.set("/test/gateways/vlan10/config/sag/prefix", "10.0.0.0/24")
+    apteryx.set("/test/gateways/vlan10/config/sag/mac", "00:00:00:00:00:01")
+    delete_payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways>
+      <name>vlan10</name>
+      <config>
+        <sag>
+          <prefix xc:operation="delete">10.0.0.0/24</prefix>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(delete_payload, post_xpath='/test/gateways[name="vlan10"]', exc_str=['10.0.0.0/24'])
+
+    reuse_payload = """
+<config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0"
+        xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test>
+    <gateways xc:operation="create">
+      <name>vlan11</name>
+      <config>
+        <sag>
+          <prefix>10.0.0.0/24</prefix>
+          <mac>00:00:00:00:00:02</mac>
+        </sag>
+      </config>
+    </gateways>
+  </test>
+</config>
+"""
+    _edit_config_test(reuse_payload, post_xpath='/test/gateways[name="vlan11"]', inc_str=['10.0.0.0/24'])
+
+
 def test_edit_config_list_missing_index():
     """
     Set merge for new animal without an index, expect an error.
