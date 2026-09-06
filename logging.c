@@ -45,7 +45,7 @@ load_logging_options (void)
     buf = g_malloc0 (READ_BUF_SIZE);
     filename = g_strdup_printf ("%s/%s", logging_directory, logging_filename);
     fp = fopen (filename, "r");
-    if (fp && buf)
+    if (fp)
     {
         if (fgets (buf, READ_BUF_SIZE, fp) != NULL)
         {
