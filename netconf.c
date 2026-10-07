@@ -1911,6 +1911,279 @@ _check_exist (const char *check_xpath, NC_ERR_TAG *err_tag, bool expected)
     apteryx_free_tree (check_result);
 }
 
+/** Recursively collect the apteryx path of every list entry found depth
+ * levels below the current node. */
+static void
+_netconf_collect_entry_paths (GNode *node, const char *base_path, int depth, GList **paths)
+{
+    if (depth == 0)
+    {
+        *paths = g_list_append (*paths, g_strdup (base_path));
+        return;
+    }
+    for (GNode *child = node->children; child; child = child->next)
+    {
+        char *new_path = g_strdup_printf ("%s/%s", base_path, APTERYX_NAME (child));
+        _netconf_collect_entry_paths (child, new_path, depth - 1, paths);
+        g_free (new_path);
+    }
+}
+
+/** Resolves parts from index i onward, starting under node. Tries every
+ * same-named child at each level (not just the first) since sibling XML
+ * elements for the same list entry-point end up as separate same-named
+ * GNodes rather than one merged node - see _tree_collect_list_entries. */
+static GNode *
+_tree_find_node_at (GNode *node, gchar **parts, int i)
+{
+    while (parts[i] && parts[i][0] == '\0')
+    {
+        i++;
+    }
+
+    if (!parts[i])
+        return node;
+
+    for (GNode *child = node->children; child; child = child->next)
+    {
+        if (g_strcmp0 (APTERYX_NAME (child), parts[i]) == 0)
+        {
+            GNode *found = _tree_find_node_at (child, parts, i + 1);
+            if (found)
+                return found;
+        }
+    }
+    return NULL;
+}
+
+/** Walk apteryx tree to the node identified by the slash-separated path, or
+ * return NULL if no such node exists. */
+static GNode *
+_tree_find_node (GNode *tree, const char *path)
+{
+    gchar **parts = g_strsplit (path, "/", -1);
+    int i = 0;
+    while (parts[i] && parts[i][0] == '\0')
+        i++;
+
+    GNode *node = NULL;
+    if (parts[i])
+    {
+        /* Root node name may have a leading "/" */
+        const char *root_name = APTERYX_NAME (tree);
+        const char *cmp = (root_name[0] == '/') ? root_name + 1 : root_name;
+        if (g_strcmp0 (cmp, parts[i]) == 0)
+        {
+            node = _tree_find_node_at (tree, parts, i + 1);
+        }
+    }
+    else
+    {
+        node = tree;
+    }
+
+    g_strfreev (parts);
+    return node;
+}
+
+/** Return the value of leaf_name under the entry at entry_path in apteryx
+ * tree, or NULL if not present. */
+static char *
+_tree_get_leaf (GNode *tree, const char *entry_path, const char *leaf_name)
+{
+    char *full_path = g_strdup_printf ("%s/%s", entry_path, leaf_name);
+    GNode *node = _tree_find_node (tree, full_path);
+    g_free (full_path);
+    char *value = (node && APTERYX_HAS_VALUE (node)) ? APTERYX_VALUE (node) : NULL;
+    return value ? g_strdup (value) : NULL;
+}
+
+/**
+ * Collect entry paths for a list from the in-memory edit tree. Unlike a single
+ * entry lookup, this can't stop at the first node matching the list's name.
+ * Several sibling XML elements for the same list (e.g. two <xyz> entries in
+ * one edit-config request) end up as separate same-named GNodes rather than
+ * one merged node, so every one of them has to be visited to see every entry.
+ */
+static void
+_tree_collect_list_entries (GNode *tree, const char *list_path, int key_count, GList **paths)
+{
+    const char *slash = strrchr (list_path, '/');
+    if (!slash)
+    {
+        return;
+    }
+
+    char *list_name = g_strdup (slash + 1);
+    char *parent_path = g_strndup (list_path, slash - list_path);
+    GNode *parent = parent_path[0] ? _tree_find_node (tree, parent_path) : tree;
+
+    if (parent)
+    {
+        for (GNode *child = parent->children; child; child = child->next)
+        {
+            if (g_strcmp0 (APTERYX_NAME (child), list_name) == 0)
+            {
+                _netconf_collect_entry_paths (child, list_path, key_count, paths);
+            }
+        }
+    }
+
+    g_free (list_name);
+    g_free (parent_path);
+}
+
+/**
+ * Find the innermost YANG list enclosing the node, if any.
+ * On success, fills in that list's schema and path, plus the path of the specific
+ * entry that owns the node. Returns false if no list encloses it.
+ */
+static bool
+_netconf_find_owning_list (const char *prefix, gchar **remaining,
+                       sch_node **out_schema, char **out_list_path, char **out_entry_path)
+{
+    if (!remaining[0])
+    {
+        return *out_list_path != NULL;
+    }
+
+    char *next_prefix = g_strdup_printf ("%s/%s", prefix, remaining[0]);
+    sch_node *schema = sch_lookup (g_schema, next_prefix);
+
+    if (!schema)
+    {
+        g_free (next_prefix);
+        return *out_list_path != NULL;
+    }
+
+    if (sch_is_list (schema))
+    {
+        char *entry_path = g_strdup (next_prefix);
+        int consumed = 0;
+        if (remaining[1])
+        {
+            char *joined = g_strdup_printf ("%s/%s", entry_path, remaining[1]);
+            g_free (entry_path);
+            entry_path = joined;
+            consumed = 1;
+        }
+
+        g_free (*out_list_path);
+        *out_list_path = g_strdup (next_prefix);
+        g_free (*out_entry_path);
+        *out_entry_path = entry_path;
+        *out_schema = schema;
+
+        bool found = _netconf_find_owning_list (entry_path, remaining + 1 + consumed,
+                                            out_schema, out_list_path, out_entry_path);
+        g_free (next_prefix);
+        return found;
+    }
+
+    bool found = _netconf_find_owning_list (next_prefix, remaining + 1,
+                                        out_schema, out_list_path, out_entry_path);
+    g_free (next_prefix);
+    return found;
+}
+
+/* Look up a leaf's value for an entry, preferring the in-memory edit tree (so
+ * entries only created/changed by the current request see their new value)
+ * and falling back to apteryx for anything not touched by this edit. */
+static char *
+_tree_or_apteryx_get_leaf (GNode *tree, const char *entry_path, const char *leaf_name)
+{
+    char *value = _tree_get_leaf (tree, entry_path, leaf_name);
+    if (!value)
+    {
+        char *lp = g_strdup_printf ("%s/%s", entry_path, leaf_name);
+        value = apteryx_get (lp);
+        g_free (lp);
+    }
+    return value;
+}
+
+/* sch_check_unique() leaf resolver: arg is the in-memory edit tree, checked
+ * first (so entries only created/changed by this request see their new
+ * value) then apteryx for anything not touched by this edit. */
+static char *
+_netconf_unique_leaf (const char *entry_path, const char *leaf_name, void *arg)
+{
+    return _tree_or_apteryx_get_leaf ((GNode *) arg, entry_path, leaf_name);
+}
+
+/** Check whether any entry under list_path violates any YANG unique constraint
+ * declared on schema, the enclosing list of that entry, via the shared
+ * apteryx-xml implementation. Every entry this edit's tree touches under
+ * list_path is validated in the same call, so two new entries colliding with
+ * each other in the same edit-config request are also caught. */
+static bool
+_netconf_check_entry_unique (GNode *tree, sch_node *schema, const char *list_path)
+{
+    GList *new_paths = NULL;
+    _tree_collect_list_entries (tree, list_path, 1, &new_paths);
+
+    bool valid = sch_check_unique (schema, list_path, new_paths, _netconf_unique_leaf, tree,
+                                   apteryx_netconf_verbose ? SCH_F_DEBUG : 0);
+
+    g_list_free_full (new_paths, g_free);
+    return valid;
+}
+
+/** Check whether the entry addressed by path violates any YANG unique
+ * constraint on its enclosing list. Entries already looked up via checked
+ * (keyed by resolved entry path) are skipped, since several changed paths
+ * in the same edit (e.g. two leaves merged in one entry) can resolve to the
+ * same entry. */
+static bool
+_netconf_check_path_unique (GNode *tree, const char *path, GHashTable *checked)
+{
+    sch_node *schema = NULL;
+    char *list_path = NULL;
+    char *entry_path = NULL;
+    bool valid = true;
+    gchar **components = g_strsplit (path, "/", -1);
+
+    /* Skip the empty leading component produced by the path's leading '/' */
+    gchar **start = components;
+    if (start[0] && start[0][0] == '\0')
+    {
+        start++;
+    }
+
+    if (_netconf_find_owning_list ("", start, &schema, &list_path, &entry_path) &&
+        !g_hash_table_contains (checked, entry_path))
+    {
+        g_hash_table_insert (checked, g_strdup (entry_path), NULL);
+        valid = _netconf_check_entry_unique (tree, schema, list_path);
+    }
+
+    g_free (list_path);
+    g_free (entry_path);
+    g_strfreev (components);
+    return valid;
+}
+
+/** Check every distinct create/merge/replace path from this edit for YANG
+ * unique constraint violations. */
+static bool
+netconf_check_unique (GNode *tree, GList *creates, GList *merges, GList *replaces)
+{
+    GHashTable *checked = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+    GList *op_lists[] = { merges, replaces, creates };
+    bool valid = true;
+
+    for (int i = 0; i < G_N_ELEMENTS (op_lists) && valid; i++)
+    {
+        for (GList *iter = op_lists[i]; iter && valid; iter = g_list_next (iter))
+        {
+            valid = _netconf_check_path_unique (tree, (char *) iter->data, checked);
+        }
+    }
+
+    g_hash_table_destroy (checked);
+    return valid;
+}
+
 /**
  * Process the default-operation option in an edit element, returning whether the
  * edit_config processing can continue. The other return via passed in pointers is
@@ -2076,6 +2349,32 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
         return ret;
     }
 
+    /* For a create make sure the data does not already exist */
+    for (iter = sch_parm_creates (parms); iter; iter = g_list_next (iter))
+    {
+        exists = apteryx_get ((char *) iter->data);
+        if (exists)
+        {
+            g_free (exists);
+            ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_DATA_EXISTS, NC_ERR_TYPE_APP, NULL, NULL, NULL, true);
+            apteryx_free_tree (tree);
+            sch_parm_free (parms);
+            return ret;
+        }
+    }
+
+    /* Check YANG unique constraints */
+    if (!netconf_check_unique (tree, sch_parm_creates (parms),
+                               sch_parm_merges (parms),
+                               sch_parm_replaces (parms)))
+    {
+        ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_OPR_FAILED,
+                                   NC_ERR_TYPE_APP, NULL, NULL, NULL, true);
+        sch_parm_free (parms);
+        apteryx_free_tree (tree);
+        return ret;
+    }
+
     /* Check delete and create paths */
     NC_ERR_TAG err_tag = NC_ERR_TAG_UNKNOWN;
     for (iter = sch_parm_deletes (parms); iter; iter = g_list_next (iter))
@@ -2135,20 +2434,6 @@ handle_edit (struct netconf_session *session, xmlNode * rpc)
 
     //TODO - permissions
     //TODO - patterns
-
-    /* For a create make sure the data does not already exist */
-    for (iter = sch_parm_creates (parms); iter; iter = g_list_next (iter))
-    {
-        exists = apteryx_get ((char *) iter->data);
-        if (exists)
-        {
-            g_free (exists);
-            ret = send_rpc_error_full (session, rpc, NC_ERR_TAG_DATA_EXISTS, NC_ERR_TYPE_APP, NULL, NULL, NULL, true);
-            apteryx_free_tree (tree);
-            sch_parm_free (parms);
-            return ret;
-        }
-    }
 
     /* Loop through conditions which are stored in the list as path, condition, path, condition, ... */
     for (iter = sch_parm_conditions (parms); iter; iter = g_list_next (iter))
