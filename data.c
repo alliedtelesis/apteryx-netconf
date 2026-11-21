@@ -1565,7 +1565,6 @@ _sch_xpath_to_gnode (sch_instance * instance, sch_node ** rschema, sch_node ** v
                     DEBUG ("%*s%s\n", depth * 2, " ", APTERYX_NAME (child));
                 }
             }
-            g_free (pred);
         }
         else if (equals && sch_is_list (schema))
         {
@@ -1590,8 +1589,7 @@ _sch_xpath_to_gnode (sch_instance * instance, sch_node ** rschema, sch_node ** v
 
                 if (!vschema || !*vschema)
                 {
-                    free ((void *)rnode->data);
-                    g_node_destroy (rnode);
+                    apteryx_free_tree (rnode);
                     rnode = NULL;
                 }
                 goto exit;
@@ -1604,6 +1602,7 @@ exit:
     if (rschema)
         *rschema = schema;
     free (name);
+    g_free (pred);
     g_free (new_path);
     return rnode;
 }
