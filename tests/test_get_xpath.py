@@ -6455,3 +6455,50 @@ def test_get_xpath_list_trunk_predicate_one():
 </nc:data>
     """
     _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+# A predicate the path parser does not use, followed by a long text, so that
+# any copy of it that is not freed is easy to see. Run the daemon under
+# valgrind (TEST_WRAPPER in run.sh) to check for loss.
+XPATH_PRED_TAIL = "x" * 10000
+
+
+def test_get_xpath_predicate_on_container():
+    # The path parser ignores a predicate on a node that is not a list, so this
+    # returns the data. That is the current behaviour, not a requirement: in
+    # XPath the predicate would select nothing.
+    xpath = "/test/settings[" + XPATH_PRED_TAIL + "]/debug"
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <test xmlns="http://test.com/ns/yang/testing">
+    <settings>
+      <debug>enable</debug>
+    </settings>
+  </test>
+</nc:data>
+    """
+    for _ in range(3):
+        _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_predicate_no_schema_node():
+    xpath = "/test/nosuch[" + XPATH_PRED_TAIL + "]"
+    expected = {"message": "XPATH: malformed filter"}
+    for _ in range(3):
+        _get_test_with_filter_expect_error(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_predicate_skipped_list_level():
+    xpath = "/test/settings/users/name[" + XPATH_PRED_TAIL + "]"
+    expected = """
+<nc:data xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    for _ in range(3):
+        _get_test_with_filter(xpath, expected, f_type='xpath')
+
+
+def test_get_xpath_list_predicate_bad_child():
+    xpath = "/test/settings/users[name='fred']/nosuch"
+    expected = {"message": "XPATH: malformed filter"}
+    for _ in range(3):
+        _get_test_with_filter_expect_error(xpath, expected, f_type='xpath')
