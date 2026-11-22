@@ -583,14 +583,14 @@ def test_with_default_report_all_on_empty_branch():
     <animals>
       <animal>
         <name>cat</name>
-        <type xmlns="http://test.com/ns/yang/animal-types">a-types:big</type>
+        <type xmlns:a-types="http://test.com/ns/yang/animal-types">a-types:big</type>
         <config>
           <type>big</type>
         </config>
       </animal>
       <animal>
         <name>dog</name>
-        <type xmlns="http://test.com/ns/yang/animal-types">a-types:big</type>
+        <type xmlns:a-types="http://test.com/ns/yang/animal-types">a-types:big</type>
         <colour>brown</colour>
         <config>
           <type>big</type>
@@ -598,7 +598,7 @@ def test_with_default_report_all_on_empty_branch():
       </animal>
       <animal>
         <name>hamster</name>
-        <type xmlns="http://test.com/ns/yang/animal-types">a-types:little</type>
+        <type xmlns:a-types="http://test.com/ns/yang/animal-types">a-types:little</type>
         <food>
           <name>banana</name>
           <type>fruit</type>
@@ -613,7 +613,7 @@ def test_with_default_report_all_on_empty_branch():
       </animal>
       <animal>
         <name>mouse</name>
-        <type xmlns="http://test.com/ns/yang/animal-types">a-types:little</type>
+        <type xmlns:a-types="http://test.com/ns/yang/animal-types">a-types:little</type>
         <colour>grey</colour>
         <config>
           <type>big</type>
@@ -621,7 +621,7 @@ def test_with_default_report_all_on_empty_branch():
       </animal>
       <animal>
         <name>parrot</name>
-        <type xmlns="http://test.com/ns/yang/animal-types">a-types:big</type>
+        <type xmlns:a-types="http://test.com/ns/yang/animal-types">a-types:big</type>
         <colour>blue</colour>
         <config>
           <type>big</type>

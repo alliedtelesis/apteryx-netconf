@@ -424,8 +424,7 @@ _sch_gnode_to_xml (sch_instance * instance, sch_node * schema, sch_ns *ns, xmlNo
                 if (idref_prefix)
                 {
                     value = g_strdup_printf ("%s:%s", (char *) idref_prefix, value);
-                    xmlNs *nns = xmlNewNs (data, idref_href, NULL);
-                    xmlSetNs (data, nns);
+                    xmlNewNs (data, idref_href, idref_prefix);
                     g_free (temp);
                     xmlFree (idref_prefix);
                 }
